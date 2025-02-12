@@ -142,7 +142,7 @@ ds = load_dataset(script_args.dataset_name_or_path, split="train")
 # datasets = [load_dataset(script_args.dataset_name_or_path, config, split='train') for config in configs]
 # ds = concatenate_datasets(datasets)
 
-ds = ds.remove_columns(["prompt"])
+# ds = ds.remove_columns(["prompt"])
 
 ds = ds.map(
     lambda x: {
