@@ -23,6 +23,7 @@ pip install numpy==1.26.4 #Note that the numpy version should be `numpy<2.0`.  `
 pip install antlr4-python3-runtime==4.7.2
 pip install sympy==1.12
 pip install latex2sympy2==1.9.1
+pip install word2number==1.1
 ```
 
 ### Training
