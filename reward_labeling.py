@@ -1574,7 +1574,6 @@ def strip_string(string):
 
     return string
 
-####
 
 from transformers import AutoTokenizer, HfArgumentParser, pipeline
 from dataclasses import dataclass, field
@@ -1624,23 +1623,3 @@ for sample in tqdm(ds):
     all_data.append(sample)
 with open(script_args.output_dir,"w") as f:
     json.dump(all_data,f,indent=4,ensure_ascii=False)
-
-
-
-
-
-# from datasets import load_dataset
-# ds = load_dataset("qwselfcorr/math_augmath_star_tmp10", split='train')
-
-# with open("eval_result/Qwen_Qwen2.5-Math-7B_rewards.json",'r') as f:
-#     data = json.load(f)
-# cnt = 0
-# tora_cnt = 0
-# for sample in data:
-#     tora_cnt += sum(sample['rewards'])
-#     for ans in sample['responses']:
-#         z = is_equal(ans, sample['gt'])
-#         cnt += z
-#         #f = sample['rewards'][t]
-
-# print(tora_cnt/500, cnt/500)
