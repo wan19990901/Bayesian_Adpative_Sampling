@@ -8,8 +8,8 @@ eval "$(conda shell.bash hook)"
 initial_model="Qwen/Qwen2.5-Math-7B"
 base_path="./iter_dpo_numina_rule_reward"
 mkdir $base_path
-iteration_prefix="Train"
-best_of_k=8
+iteration_prefix="Test"
+best_of_k=4
 my_world_size=8
 NUM_GPUS=$my_world_size
 
@@ -23,11 +23,10 @@ run_iteration() {
     local model_output=$5
 
     conda activate vllm
-    my_world_size=8
     infer_model=$2
     prompt_dir=$3
     output_dir=$4
-        for i in $(seq 0 $((NUM_GPUS - 1))); do
+    for i in $(seq 0 $((NUM_GPUS - 1))); do
         CUDA_VISIBLE_DEVICES=$i python ./generation/gen_hf.py \
             --model_name_or_path $model_path \
             --dataset_name_or_path $jsonl_input \
@@ -45,7 +44,6 @@ run_iteration() {
     
     # Perform reward labeling
     python reward_labeling.py --dataset_name_or_path "${output_dir}_data.jsonl" --output_dir $model_output
-   
     conda activate rlhflow
     cat <<EOT > dpo_config.yaml
 run_name: $iteration
@@ -80,23 +78,13 @@ EOT
 }
 
 
-# Main loop for iterations
-for i in {1..9}
-do
-    iteration_name="Qwen_numina_iter${i}"
-    jsonl_input="RLHFlow/numia_prompt_dpo${i}"
-    # jsonl_input="EleutherAI/hendrycks_math"
-    json_output="${base_path}/${iteration_prefix}${i}_${iteration_name}"
-    model_output="${base_path}/${iteration_prefix}${i}_${iteration_name}_reward.json"
 
-    # Determine the model path: first iteration uses the initial model, subsequent iterations use the previous iteration's model
-    if [ $i -eq 1 ]; then
-        model_path=$initial_model
-    else
-        previous_iteration=$((i-1))
-        model_path="Qwen_numina_iter${previous_iteration}"
-    fi
+iteration_name="Qwen_numina_initial_test"
+jsonl_input="RLHFlow/numia_prompt_dpo_test"
+json_output="${base_path}/${iteration_prefix}_${iteration_name}"
+model_output="${base_path}/${iteration_prefix}_${iteration_name}_reward.json"
+model_path=$initial_model
 
-    run_iteration $iteration_name $model_path $jsonl_input $json_output $model_output
-done
+
+run_iteration "$iteration_name" "$model_path" "$jsonl_input" "$json_output" "$model_output"
 
