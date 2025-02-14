@@ -9,11 +9,36 @@
 </div>
 
 
-This is the repository for running the Iterative DPO with rule-based rewards. In every iteration, we sample responses from the model and label the rewards using the rule-based method. We then construct the preference pair based on the reward scores for DPO training.
+This is the repository for running the Iterative DPO with rule-based rewards. In every iteration, we sample responses from the model and label the rewards using the rule-based method. We then construct the preference pair based on the reward scores for DPO training. In our code, we perform iterative DPO starting with Qwen2.5-MATH-7B with prompts from Numina-Math. After the DPO training, our model achieves 26.7% on AIME24, 76.8% on MATH500, 62.5% on AME, 30.5% on Minerva-Math, and 37.9% on OlympiadBench, surpassing Llama-3.1-70B-Instruct and nearly on par with Eurus-2-7B-PRIME which adopts SFT and PPO training.
+
+
+<div align="center">
+  <img src="figures/dpo_overview.png" alt="Figure caption" width="100%">
+  <p><em>Illustration of the iterative DPO pipeline. Here the exploration is implemented via best-of-n v.s. worst of n sampling. In other words, we sample n responses and use the response with the highest reward and lowest reward as a preference pair. For RAFT training, the pipeline is similar except that we only use the positive data for fine-tuning.</em></p>
+</div>
 
 ## Introduction
 
-Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” with Supervised Fine-tuning, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 49.7% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model.
+Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” with Supervised Fine-tuning, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 49.7% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model. We list the result as follows:
+
+<div align="center">
+
+|  | AIME24 | MATH500 | AMC | Minerva Math | OlympiadBench | Average |  
+|:--------:|:--------:|:--------:|:--------:|:--------:|:--------:|:--------:|
+| Base   | 23.3  |  65.4 | 47.5  |  9.9   |    23.4   | 33.9      |
+| Qwen-Base + SFT Warm Up   | 20.0|	73.2|	62.5|	30.5|	35.6|	44.4 |    
+| Llama-3.1-70B-Instruct   | 16.7	| 64.6	| 30.1 |	35.3 |	31.9 |	35.7 | 
+| Eurus-2-7B-PRIME   | 26.7 |	79.2 |	57.8 |	38.6 | 	42.1| 	48.9 |
+| Qwen-DPO-NLL-R1-Zero   |30.0|	74.4	|62.5|	26.1|	37.9|	46.2|
+| Qwen-DPO-R1-Zero   | 26.7 |	76.8 |	62.5 |	30.9 |	37.9 |	47.0 | 
+| Qwen-DPO-R1-MATH7500-Zero   |26.7 |	72.2 |	57.5 |	26.8 |	37.2 |	44.1 | 
+| Qwen-RAFT-R1-Zero   | 20.0 |	77.6 |	55.0 |	30.5 |	38.7 |	44.4 |
+| Qwen-DPO-R1   | 20.0 |	81.0 |	67.5 |	33.5 |	46.7 |	49.7 |
+| Qwen-PPO-R1-MATH7500-Zero	| 33.3 |	77.2| 67.5|	33.8|	40.7|	50.5 |
+| Qwen-PPO-R1-Zero |	43.3|	79.4|	62.5|	33.1|	40.7|	51.8|
+
+</div>
+
 
 ## Requirements
 
