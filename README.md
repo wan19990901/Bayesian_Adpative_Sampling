@@ -1,4 +1,4 @@
-# Online-DPO-R1
+# Online-DPO-R1: Unlocking Effective Reasoning Without the PPO Overhead
 
 This is the repository for running the Iterative DPO with rule-based rewards. In every iteration, we sample responses from the model and label the rewards using the rule-based method. We then construct the preference pair based on the reward scores for DPO training.
 ## Requirements
