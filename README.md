@@ -1,6 +1,20 @@
 # Online-DPO-R1: Unlocking Effective Reasoning Without the PPO Overhead
 
+<div align="center">
+  <a href="https://efficient-unicorn-451.notion.site/Online-DPO-R1-Unlocking-Effective-Reasoning-Without-the-PPO-Overhead-1908b9a70e7b80c3bc83f4cf04b2f175">
+    <img src="https://www.notion.so/front-static/favicon.ico" alt="Notion Icon">
+  </a>
+  <br>
+  <a href="https://www.notion.so/">Notion Page</a>
+</div>
+
+
 This is the repository for running the Iterative DPO with rule-based rewards. In every iteration, we sample responses from the model and label the rewards using the rule-based method. We then construct the preference pair based on the reward scores for DPO training.
+
+## Introduction
+
+Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” with Supervised Fine-tuning, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 49.7% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model.
+
 ## Requirements
 
 We have two separate environments for running the Iterative DPO.
