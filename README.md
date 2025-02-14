@@ -19,7 +19,7 @@ This is the repository for running the Iterative DPO with rule-based rewards. In
 
 ## Introduction
 
-Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” with Supervised Fine-tuning, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 49.7% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model. We list the result as follows:
+Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” during RL training, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 49.7% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model. We list the result as follows:
 
 <div align="center">
 
@@ -33,12 +33,17 @@ Inspired by the success of Deepseek-R1-Zero and several replications of PPO trai
 | Qwen-DPO-R1-Zero   | 26.7 |	76.8 |	62.5 |	30.9 |	37.9 |	47.0 | 
 | Qwen-DPO-R1-MATH7500-Zero   |26.7 |	72.2 |	57.5 |	26.8 |	37.2 |	44.1 | 
 | Qwen-RAFT-R1-Zero   | 20.0 |	77.6 |	55.0 |	30.5 |	38.7 |	44.4 |
-| Qwen-DPO-R1   | 20.0 |	81.0 |	67.5 |	33.5 |	46.7 |	49.7 |
+| Qwen-DPO-R1   | 23.3 |	82.4 |	62.5 |	34.2 |	47.7 |	50.0 |
 | Qwen-PPO-R1-MATH7500-Zero	| 33.3 |	77.2| 67.5|	33.8|	40.7|	50.5 |
 | Qwen-PPO-R1-Zero |	43.3|	79.4|	62.5|	33.1|	40.7|	51.8|
 
 </div>
 
+Our key findings:
+* DPO and RAFT significantly improve model performance while remaining efficient and easy to implement.
+* Iterative DPO does NOT benefit from the additional Negative Log-Likelihood (NLL) loss.
+* DPO with SFT warm-up contributes to the training and improves performance.
+* Compared to the PPO algorithm (51.8%), DPO/RAFT achieves an inferior performance, showing that PPO is still one of the most effective RL algorithms in this context.
 
 ## Requirements
 
@@ -94,3 +99,18 @@ bash run_iter_dpo.sh
 ## Evaluation
 
 We provide the evaluation scripts for all the benchmarks we use, including **AIME24**, **AMC23**, **MATH500**, **OlympiadBench**, and **Minerva_Math**. Please go to ```eval_math``` folder for the detailed instructions.
+
+## Citation
+
+The authors would like to thank the great open-source communities, including the developers of vLLM, VeRL, OpenRLHF, Qwen, and Axolotl for sharing their models, codes, and training recipes. We also thank the developers of DeepSeek-R1 for open-sourcing their state-of-the-art models, and innovative training methodologies.  
+
+If you find this blog our our codebase useful, it would be highly appreciated if you could consider citing our work by:
+
+```bibtex
+@misc{zhang2025dpor1,
+  title={Online-DPO-R1: Unlocking Effective Reasoning Without the PPO Overhead},
+  author={Hanning Zhang, Jiarui Yao, Chenlu Ye, Wei Xiong, Tong Zhang},
+  year={2025},
+  howpublished={\url{https://efficient-unicorn-451.notion.site/Online-DPO-R1-Unlocking-Effective-Reasoning-Without-the-PPO-Overhead-1908b9a70e7b80c3bc83f4cf04b2f175?pvs=4}},
+  note={Notion Blog}
+}
