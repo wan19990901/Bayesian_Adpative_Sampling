@@ -5,7 +5,7 @@
     <img src="https://www.notion.so/front-static/favicon.ico" alt="Notion Icon">
   </a>
   <br>
-  <a href="https://www.notion.so/">Notion Page</a>
+  <a href="https://efficient-unicorn-451.notion.site/Online-DPO-R1-Unlocking-Effective-Reasoning-Without-the-PPO-Overhead-1908b9a70e7b80c3bc83f4cf04b2f175">Notion Page</a>
 </div>
 
 
