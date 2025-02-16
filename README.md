@@ -33,7 +33,7 @@ Inspired by the success of Deepseek-R1-Zero and several replications of PPO trai
 | Qwen-DPO-R1-Zero   | 26.7 |	76.8 |	62.5 |	30.9 |	37.9 |	47.0 | 
 | Qwen-DPO-R1-MATH7500-Zero   |26.7 |	72.2 |	57.5 |	26.8 |	37.2 |	44.1 | 
 | Qwen-RAFT-R1-Zero   | 20.0 |	77.6 |	55.0 |	30.5 |	38.7 |	44.4 |
-| Qwen-DPO-R1   | 23.3 |	82.4 |	62.5 |	34.2 |	47.7 |	50.0 |
+| Qwen-DPO-R1   | 30.0 |	84.4 |	62.5 |	33.5 |	48.4 |	51.8 |
 | Qwen-PPO-R1-MATH7500-Zero	| 33.3 |	77.2| 67.5|	33.8|	40.7|	50.5 |
 | Qwen-PPO-R1-Zero |	43.3|	79.4|	62.5|	33.1|	40.7|	51.8|
 
