@@ -17,6 +17,15 @@ This is the repository for running the Iterative DPO with rule-based rewards. In
   <p><em>Illustration of the iterative DPO pipeline. Here the exploration is implemented via best-of-n v.s. worst of n sampling. In other words, we sample n responses and use the response with the highest reward and lowest reward as a preference pair. For RAFT training, the pipeline is similar except that we only use the positive data for fine-tuning.</em></p>
 </div>
 
+## Models
+
+We provide the model checkpoints from Huggingface:
+- Qwen Warm-Up SFT: [RLHFlow/Qwen2.5-7B-SFT](https://huggingface.co/RLHFlow/Qwen2.5-7B-SFT)
+- Qwen-DPO-R1-Zero: [RLHFlow/Qwen2.5-7B-DPO-Zero](https://huggingface.co/RLHFlow/Qwen2.5-7B-DPO-Zero)
+- Qwen-DPO-R1: [RLHFlow/Qwen2.5-7B-DPO](https://huggingface.co/RLHFlow/Qwen2.5-7B-DPO)
+- Qwen-RAFT-R1-Zero: [RLHFlow/Qwen2.5-7B-RAFT-Zero](https://huggingface.co/RLHFlow/Qwen2.5-7B-RAFT-Zero)
+- Qwen-PPO-R1-Zero:[RLHFlow/Qwen2.5-7B-PPO-Zero](https://huggingface.co/RLHFlow/Qwen2.5-7B-PPO-Zero)
+
 ## Introduction
 
 Inspired by the success of Deepseek-R1-Zero and several replications of PPO training which achieve superior performance on mathematical reasoning and demonstrate the “Aha moment” during RL training, we are curious about alternative algorithms in RL in this scenario. In this project, we implement rule-based RL from Qwen2.5-MATH-7B-base using iterative DPO and rejection sampling (RAFT), which are efficient and easy to implement. We train the models using the prompt set from the MATH training set and Numina-Math, and evaluate the models on AIME24, AMC23, MATH500, Minerva Math, and OlympiadBench. After several iterations, our models achieve an overall accuracy of 50.0% for DPO after SFT warm-up, 47.0% for DPO starting from the Base Model, and 44.4% for RAFT, compared to 33.9% for the Base Model. We list the result as follows:
@@ -44,6 +53,7 @@ Our key findings:
 * Iterative DPO does NOT benefit from the additional Negative Log-Likelihood (NLL) loss.
 * DPO with SFT warm-up contributes to the training and improves performance.
 * Compared to the PPO algorithm (51.8%), DPO/RAFT achieves an inferior performance, showing that PPO is still one of the most effective RL algorithms in this context.
+* SFT Warm-Up before DPO could improve the model performance (51.8%) and be competent with Qwen-PPO-R1-Zero.
 
 ## Requirements
 
