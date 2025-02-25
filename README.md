@@ -119,7 +119,7 @@ If you find this blog our our codebase useful, it would be highly appreciated if
 ```bibtex
 @misc{zhang2025dpor1,
   title={Online-DPO-R1: Unlocking Effective Reasoning Without the PPO Overhead},
-  author={Hanning Zhang, Jiarui Yao, Chenlu Ye, Wei Xiong, Tong Zhang},
+  author={Hanning Zhang and Jiarui Yao and Chenlu Ye and Wei Xiong and Tong Zhang},
   year={2025},
   howpublished={\url{https://efficient-unicorn-451.notion.site/Online-DPO-R1-Unlocking-Effective-Reasoning-Without-the-PPO-Overhead-1908b9a70e7b80c3bc83f4cf04b2f175?pvs=4}},
   note={Notion Blog}
