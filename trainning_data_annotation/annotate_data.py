@@ -62,7 +62,7 @@ remain_gts = []
 all_samples = []
 
 for sample in ds:
-    remain_codes.append(sample['code'])
+    remain_codes.append(sample['responses'])
     remain_gts.append(sample['gt'])    
     all_samples.append(sample)
 
