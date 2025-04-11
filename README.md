@@ -117,10 +117,9 @@ The authors would like to thank the great open-source communities, including the
 If you find this blog our our codebase useful, it would be highly appreciated if you could consider citing our work by:
 
 ```bibtex
-@misc{zhang2025dpor1,
-  title={Online-DPO-R1: Unlocking Effective Reasoning Without the PPO Overhead},
-  author={Hanning Zhang and Jiarui Yao and Chenlu Ye and Wei Xiong and Tong Zhang},
-  year={2025},
-  howpublished={\url{https://efficient-unicorn-451.notion.site/Online-DPO-R1-Unlocking-Effective-Reasoning-Without-the-PPO-Overhead-1908b9a70e7b80c3bc83f4cf04b2f175?pvs=4}},
-  note={Notion Blog}
+@article{zhangonline,
+  title={Online-dpo-r1: Unlocking effective reasoning without the ppo overhead, 2025},
+  author={Zhang, Hanning and Yao, Jiarui and Ye, Chenlu and Xiong, Wei and Zhang, Tong},
+  journal={Notion Blog}
 }
+
