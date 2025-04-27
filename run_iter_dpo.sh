@@ -5,7 +5,8 @@ eval "$(conda shell.bash hook)"
 
 
 # Base paths and settings
-initial_model="Qwen/Qwen2.5-Math-7B"
+initial_model="Qwen/Qwen2.5-Math-7B-base"
+llama_model="meta-llama/LLaMA-3.2-3B-Instruct"
 base_path="./iter_dpo_numina_rule_reward"
 mkdir $base_path
 iteration_prefix="Train"
@@ -83,7 +84,7 @@ EOT
 # Main loop for iterations
 for i in {1..9}
 do
-    iteration_name="Qwen_numina_iter${i}"
+    iteration_name="Qwen_llama_iter${i}"
     jsonl_input="RLHFlow/numia_prompt_dpo${i}"
     # jsonl_input="EleutherAI/hendrycks_math"
     json_output="${base_path}/${iteration_prefix}${i}_${iteration_name}"
@@ -92,9 +93,11 @@ do
     # Determine the model path: first iteration uses the initial model, subsequent iterations use the previous iteration's model
     if [ $i -eq 1 ]; then
         model_path=$initial_model
+    elif [ $i -eq 2 ]; then
+        model_path=$llama_model
     else
         previous_iteration=$((i-1))
-        model_path="Qwen_numina_iter${previous_iteration}"
+        model_path="Qwen_llama_iter${previous_iteration}"
     fi
 
     run_iteration $iteration_name $model_path $jsonl_input $json_output $model_output

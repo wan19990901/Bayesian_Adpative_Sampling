@@ -30,6 +30,8 @@ from transformers.trainer_utils import EvalLoopOutput
 from trl import DPOTrainer
 from trl.trainer.dpo_config import DPOConfig, FDivergenceConstants, FDivergenceType
 
+from utils.reward_evaluator import RewardEvaluator, ResponseSampler, SamplingStrategy
+
 class MyDPOTrainer(DPOTrainer):
     def __init__(
         self,
@@ -66,6 +68,11 @@ class MyDPOTrainer(DPOTrainer):
         ref_adapter_name: Optional[str] = None,
         reference_free: bool = False,
         force_use_ref_model: bool = False,
+        use_reward_evaluation: bool = False,
+        reward_model_name: Optional[str] = "OpenAssistant/reward-model-deberta-v3-large-v2",
+        sampling_strategy: Union[SamplingStrategy, str] = SamplingStrategy.BEST_OF_N,
+        sampling_n: int = 5,
+        bos_params: Optional[Dict] = None,
     ):
         super().__init__(
             model=model,
@@ -102,10 +109,68 @@ class MyDPOTrainer(DPOTrainer):
             reference_free=reference_free,
             force_use_ref_model=force_use_ref_model,
         )
-        print("----------------")
-        print(len(train_dataset))
-        print("----------------")
         
+        # Initialize reward evaluation and sampling if enabled
+        if use_reward_evaluation:
+            self.reward_evaluator = RewardEvaluator(model_name=reward_model_name)
+            self.response_sampler = ResponseSampler(
+                strategy=sampling_strategy,
+                n=sampling_n,
+                bos_params=bos_params
+            )
+        else:
+            self.reward_evaluator = None
+            self.response_sampler = None
+
+    def evaluate_responses(self, prompt: str, responses: List[str]) -> Optional[List[float]]:
+        """
+        Evaluate multiple responses using the reward model if enabled.
+        
+        Args:
+            prompt (str): The input prompt
+            responses (List[str]): List of responses to evaluate
+            
+        Returns:
+            Optional[List[float]]: List of reward scores if reward evaluation is enabled, None otherwise
+        """
+        if self.reward_evaluator is None:
+            return None
+        return self.reward_evaluator.evaluate_responses(prompt, responses)
+
+    def compute_reward(self, prompt: str, response: str) -> Optional[float]:
+        """
+        Compute reward for a single prompt-response pair if enabled.
+        
+        Args:
+            prompt (str): The input prompt
+            response (str): The response to evaluate
+            
+        Returns:
+            Optional[float]: Reward score if reward evaluation is enabled, None otherwise
+        """
+        if self.reward_evaluator is None:
+            return None
+        return self.reward_evaluator.compute_reward(prompt, response)
+
+    def run_sampling(
+        self,
+        initial_rewards: List[float],
+        max_samples: Optional[int] = None
+    ) -> Optional[Tuple[int, float]]:
+        """
+        Run sampling with the selected strategy if enabled.
+        
+        Args:
+            initial_rewards: List of initial reward values
+            max_samples: Optional maximum number of samples to collect
+            
+        Returns:
+            Optional[Tuple[int, float]]: Sampling results if enabled, None otherwise
+        """
+        if self.response_sampler is None:
+            return None
+        return self.response_sampler.run_sampling(initial_rewards, max_samples)
+
     def dpo_loss(
         self,
         policy_chosen_logps: torch.FloatTensor,
@@ -204,12 +269,6 @@ class MyDPOTrainer(DPOTrainer):
             losses = -F.logsigmoid((self.beta * chosen_logratios) - delta) - F.logsigmoid(
                 -(self.beta * rejected_logratios - delta)
             )
-        elif self.loss_type == "sppo_hard":
-            # In the paper (https://huggingface.co/papers/2405.00675), SPPO employs a soft probability approach, estimated using the PairRM score. The probability calculation is conducted outside of the trainer class. The version described here is the hard probability version, where P in Equation (4.7) of Algorithm 1 is set to 1 for the winner and 0 for the loser.
-            a = policy_chosen_logps - reference_chosen_logps
-            b = policy_rejected_logps - reference_rejected_logps
-
-            losses = (a - 0.5 / self.beta) ** 2 + (b + 0.5 / self.beta) ** 2
         elif self.loss_type == "nca_pair":
             chosen_rewards = (policy_chosen_logps - reference_chosen_logps) * self.beta
             rejected_rewards = (policy_rejected_logps - reference_rejected_logps) * self.beta

@@ -1,7 +1,7 @@
-run_name: Qwen_iter10
-output_dir: Qwen_iter10
-model_name_or_path: Qwen_iter9
-ref_model: Qwen_iter9
+run_name: Qwen_llama_iter10
+output_dir: Qwen_llama_iter10
+model_name_or_path: Qwen_llama_iter9
+ref_model: Qwen_llama_iter9
 learning_rate: 5.0e-7
 num_train_epochs: 2
 logging_steps: 2
@@ -10,8 +10,8 @@ do_train: true
 do_eval: true
 eval_steps: 10000
 choose_type: max_min
-train_dir: ./iter_dpo_rule_reward/Test10_Qwen_iter10_reward.json
-eval_dir: ./iter_dpo_rule_reward/Test10_Qwen_iter10_reward.json
+train_dir: ./iter_dpo_rule_reward/Test10_Qwen_llama_iter10_reward.json
+eval_dir: ./iter_dpo_rule_reward/Test10_Qwen_llama_iter10_reward.json
 loss_type: sigmoid
 lr_scheduler_type: cosine
 max_length: 2048

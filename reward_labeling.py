@@ -5,7 +5,8 @@ import sympy
 from latex2sympy2 import latex2sympy
 from typing import TypeVar, Iterable, List, Union, Any, Dict
 from word2number import w2n
-#from openrlhf.trainer.ppo_utils.qwen_math_eval_toolkit.utils import *
+from transformers import AutoTokenizer, HfArgumentParser, pipeline, AutoModelForSequenceClassification
+import torch
 
 
 def _fix_fracs(string):
@@ -583,9 +584,14 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
         return example["gt_cot"], gt_ans
 
     # parse ground truth
-    if data_name in ["math", "minerva_math", "math500"]:  #关键代码
+    if data_name in ["math", "math500"]:  # Keep math500
         gt_cot = example["solution"]
         gt_ans = extract_answer(gt_cot, data_name)
+    elif data_name == "mmlu_stem":  # Keep MMLU_stem
+        abcd = "ABCD"
+        gt_cot, gt_ans = None, abcd[example["answer"]]
+    elif data_name in ["aime24", "amc23"]:  # Keep aime24 and amc23
+        gt_cot, gt_ans = None, example["answer"]
     elif data_name == "gsm8k":
         gt_cot, gt_ans = example["answer"].split("####")
     elif data_name == "svamp":
@@ -609,9 +615,6 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
                 gt_ans = float(gt_ans)
     elif data_name == "carp_en":
         gt_cot, gt_ans = example["steps"], example["answer"]
-    elif data_name == "mmlu_stem":
-        abcd = "ABCD"
-        gt_cot, gt_ans = None, abcd[example["answer"]]
     elif data_name == "sat_math":
         gt_cot, gt_ans = None, example["Answer"]
     elif data_name == "aqua":
@@ -637,7 +640,8 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
     ]:
         gt_cot, gt_ans = None, example["answer"]
     else:
-        raise NotImplementedError(f"`{data_name}`")
+        raise NotImplementedError(f"Dataset {data_name} is not supported. Only MMLU_stem, math500, aime24, and amc23 are supported for evaluation.")
+    
     # post process
     gt_cot = str(gt_cot).strip()
     if data_name not in STRIP_EXCEPTIONS:
@@ -1595,6 +1599,14 @@ class ScriptArguments:
         default="uf_split0_responses_K8_reward.json",
         metadata={"help": "the location of the output file"},
     )
+    use_nemotron: Optional[bool] = field(
+        default=False,
+        metadata={"help": "whether to use NVIDIA's Nemotron reward model"},
+    )
+    use_rise: Optional[bool] = field(
+        default=False,
+        metadata={"help": "whether to use RISE reward model"},
+    )
 
 
 
@@ -1613,13 +1625,51 @@ all_data = []
 for sample in tqdm(ds):
     rewards = []
     for ans in sample['responses']:
+        reward_components = []
+        # Original reward based on correctness
         if is_equal(ans, sample['gt']) > 0:
-            rewards.append(1.0)
+            reward_components.append(1.0)
         elif "\\boxed" in ans:
-            rewards.append(-0.5)
+            reward_components.append(-0.5)
         else:
-            rewards.append(-1.0)
+            reward_components.append(-1.0)
+            
+        # Add Nemotron reward if enabled
+        if script_args.use_nemotron:
+            reward_components.append(get_nemotron_reward(ans))
+            
+        # Add RISE reward if enabled
+        if script_args.use_rise:
+            reward_components.append(get_rise_reward(ans))
+            
+        # Calculate average of all reward components
+        reward = sum(reward_components) / len(reward_components)
+        rewards.append(reward)
     sample['rewards'] = rewards
     all_data.append(sample)
 with open(script_args.output_dir,"w") as f:
     json.dump(all_data,f,indent=4,ensure_ascii=False)
+
+def get_nemotron_reward(text):
+    """Get reward score from NVIDIA's Llama-3.1-Nemotron-70B-Reward model"""
+    model_name = "NVIDIA/Llama-3.1-Nemotron-70B-Reward"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+        scores = torch.sigmoid(outputs.logits)
+    return scores.item()
+
+def get_rise_reward(text):
+    """Get reward score from R-I-S-E/RISE-Judge-Qwen2.5-32B model"""
+    model_name = "R-I-S-E/RISE-Judge-Qwen2.5-32B"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+        scores = torch.sigmoid(outputs.logits)
+    return scores.item()
