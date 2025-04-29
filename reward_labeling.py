@@ -1612,58 +1612,11 @@ class ScriptArguments:
 
 
 parser = HfArgumentParser(ScriptArguments)
-script_args = parser.parse_args_into_dataclasses()[0]
 
-ds = load_dataset("json",data_files=script_args.dataset_name_or_path, split="train")
-
-import time
-import json
-from tqdm import tqdm
-#ds = ds.select(range(500))
-
-all_data = []
-for sample in tqdm(ds):
-    rewards = []
-    for ans in sample['responses']:
-        reward_components = []
-        # Original reward based on correctness
-        if is_equal(ans, sample['gt']) > 0:
-            reward_components.append(1.0)
-        elif "\\boxed" in ans:
-            reward_components.append(-0.5)
-        else:
-            reward_components.append(-1.0)
-            
-        # Add Nemotron reward if enabled
-        if script_args.use_nemotron:
-            reward_components.append(get_nemotron_reward(ans))
-            
-        # Add RISE reward if enabled
-        if script_args.use_rise:
-            reward_components.append(get_rise_reward(ans))
-            
-        # Calculate average of all reward components
-        reward = sum(reward_components) / len(reward_components)
-        rewards.append(reward)
-    sample['rewards'] = rewards
-    all_data.append(sample)
-with open(script_args.output_dir,"w") as f:
-    json.dump(all_data,f,indent=4,ensure_ascii=False)
-
-def get_nemotron_reward(text):
-    """Get reward score from NVIDIA's Llama-3.1-Nemotron-70B-Reward model"""
-    model_name = "NVIDIA/Llama-3.1-Nemotron-70B-Reward"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-    
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        scores = torch.sigmoid(outputs.logits)
-    return scores.item()
-
-def get_rise_reward(text):
-    """Get reward score from R-I-S-E/RISE-Judge-Qwen2.5-32B model"""
+def get_rise_reward(text: str) -> float:
+    """
+    Get reward score from R-I-S-E/RISE-Judge-Qwen2.5-32B model.
+    """
     model_name = "R-I-S-E/RISE-Judge-Qwen2.5-32B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -1673,3 +1626,7 @@ def get_rise_reward(text):
         outputs = model(**inputs)
         scores = torch.sigmoid(outputs.logits)
     return scores.item()
+
+if __name__ == "__main__":
+    script_args = parser.parse_args_into_dataclasses()[0]
+    main(script_args)
