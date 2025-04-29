@@ -15,9 +15,9 @@ fi
 # Set variables
 PROVIDER="openai"
 MODEL_NAME="grok-3-mini-fast-beta"
-DATA_FILE="data/aime24/test.jsonl"
+DATA_FILE="data/amc23/test.jsonl"
 OUTPUT_DIR="results"
-RESPONSES_FILE="${OUTPUT_DIR}/xai_responses.json"
+RESPONSES_FILE="${OUTPUT_DIR}/xai_responses_amc23.json"
 START_ID=${1:-0}  # Default to 0 if no start ID provided
 
 # Create output directory if it doesn't exist
