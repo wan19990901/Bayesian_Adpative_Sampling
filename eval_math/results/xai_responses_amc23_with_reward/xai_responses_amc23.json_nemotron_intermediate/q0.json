@@ -1,0 +1,282 @@
+{
+  "id": 0,
+  "question": "Cities $A$ and $B$ are $45$ miles apart. Alicia lives in $A$ and Beth lives in $B$. Alicia bikes towards $B$ at 18 miles per hour. Leaving at the same time, Beth bikes toward $A$ at 12 miles per hour. How many miles from City $A$ will they be when they meet?",
+  "ground_truth": 27.0,
+  "responses": [
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 178,
+      "reward_scores": {
+        "nemotron": -8.75
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 184,
+      "reward_scores": {
+        "nemotron": -4.5
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 159,
+      "reward_scores": {
+        "nemotron": -8.1875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 178,
+      "reward_scores": {
+        "nemotron": -4.59375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 198,
+      "reward_scores": {
+        "nemotron": -7.0625
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 152,
+      "reward_scores": {
+        "nemotron": -6.96875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 177,
+      "reward_scores": {
+        "nemotron": -7.09375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 152,
+      "reward_scores": {
+        "nemotron": -8.0625
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 162,
+      "reward_scores": {
+        "nemotron": -5.34375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 148,
+      "reward_scores": {
+        "nemotron": -7.53125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 155,
+      "reward_scores": {
+        "nemotron": -6.15625
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 173,
+      "reward_scores": {
+        "nemotron": -6.9375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 161,
+      "reward_scores": {
+        "nemotron": -5.71875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 164,
+      "reward_scores": {
+        "nemotron": -6.53125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 167,
+      "reward_scores": {
+        "nemotron": -5.125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 183,
+      "reward_scores": {
+        "nemotron": -7.46875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 158,
+      "reward_scores": {
+        "nemotron": -7.09375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 140,
+      "reward_scores": {
+        "nemotron": -6.03125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 157,
+      "reward_scores": {
+        "nemotron": -6.21875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 194,
+      "reward_scores": {
+        "nemotron": -6.53125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 208,
+      "reward_scores": {
+        "nemotron": -7.125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 159,
+      "reward_scores": {
+        "nemotron": -5.75
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 163,
+      "reward_scores": {
+        "nemotron": -8.9375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 178,
+      "reward_scores": {
+        "nemotron": -5.28125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 174,
+      "reward_scores": {
+        "nemotron": -6.375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 156,
+      "reward_scores": {
+        "nemotron": -4.875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 162,
+      "reward_scores": {
+        "nemotron": -7.40625
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 164,
+      "reward_scores": {
+        "nemotron": -5.125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 160,
+      "reward_scores": {
+        "nemotron": -7.09375
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 152,
+      "reward_scores": {
+        "nemotron": -7.3125
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 168,
+      "reward_scores": {
+        "nemotron": -7.6875
+      }
+    },
+    {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 144,
+      "reward_scores": {
+        "nemotron": -6.59375
+      }
+    }
+  ],
+  "self_consistency": {
+    "majority_answer": "27",
+    "is_majority_correct": true,
+    "vote_counts": {
+      "27": 32
+    }
+  },
+  "best_of_n": {
+    "best_response": {
+      "final_answer": "27",
+      "is_correct": true,
+      "token_count": 184,
+      "reward_scores": {
+        "nemotron": -4.5
+      }
+    },
+    "best_score": -3.5,
+    "is_best_correct": true
+  }
+}

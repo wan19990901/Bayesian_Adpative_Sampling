@@ -13,11 +13,11 @@ else
 fi
 
 # Set variables
-PROVIDER="openai"
-MODEL_NAME="gpt-4.1-mini"  # Changed to GPT-4.1-mini
+PROVIDER="deepinfra"
+MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
 DATA_FILE="data/amc23/test.jsonl"
 OUTPUT_DIR="results/Raw_response"
-RESPONSES_FILE="${OUTPUT_DIR}/gpt4mini_responses_amc23.json"  # Changed output filename
+RESPONSES_FILE="${OUTPUT_DIR}/qwen_responses_amc23.json"
 START_ID=${1:-0}  # Default to 0 if no start ID provided
 NUM_RUNS=32  # Number of responses per question
 
@@ -62,7 +62,7 @@ fi
 START_TIME=$(date +%s)
 
 # Generate responses
-echo -e "\nStarting response generation with GPT-4.1-mini..."
+echo -e "\nStarting response generation with Qwen2.5-7B-Instruct..."
 echo "Target: $NUM_RUNS responses per question"
 python3 llm_inference.py \
     --provider "$PROVIDER" \
@@ -70,7 +70,6 @@ python3 llm_inference.py \
     --data_file "$DATA_FILE" \
     --output_file "$RESPONSES_FILE" \
     --api_key "$DEEPINFRA_API_KEY" \
-    --base_url "https://api.deepinfra.com/v1/openai" \
     --num_runs "$NUM_RUNS" \
     --temperature 0.7 \
     --start_id "$START_ID"

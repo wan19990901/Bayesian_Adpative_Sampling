@@ -14,6 +14,7 @@ import numpy as np
 from openai import OpenAI
 from tqdm import tqdm
 from dotenv import load_dotenv
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -122,30 +123,39 @@ class LLMEvaluator:
         """
         Get reward score from NVIDIA's Nemotron model using their API.
         """
-        try:
-            messages = [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": response}
-            ]
-            
-            response = self.nemotron_client.chat.completions.create(
-                model="nvidia/llama-3.1-nemotron-70b-reward",
-                messages=messages,
-                stream=False
-            )
-            
-            # Extract numeric value from the response
-            reward_text = response.choices[0].message.content
-            # The response format is "reward:value" or just "value"
-            if "reward:" in reward_text:
-                reward_value = reward_text.split("reward:")[1].strip()
-            else:
-                reward_value = reward_text.strip()
+        max_retries = 5
+        retry_delay = 5  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                messages = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": response}
+                ]
                 
-            return float(reward_value)
-        except Exception as e:
-            print(f"Error getting Nemotron reward: {e}")
-            return 0.0
+                response = self.nemotron_client.chat.completions.create(
+                    model="nvidia/llama-3.1-nemotron-70b-reward",
+                    messages=messages,
+                    stream=False
+                )
+                
+                # Extract numeric value from the response
+                reward_text = response.choices[0].message.content
+                # The response format is "reward:value" or just "value"
+                if "reward:" in reward_text:
+                    reward_value = reward_text.split("reward:")[1].strip()
+                else:
+                    reward_value = reward_text.strip()
+                    
+                return float(reward_value)
+            except Exception as e:
+                print(f"Error getting Nemotron reward (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    print(f"Waiting {retry_delay} seconds before retrying...")
+                    time.sleep(retry_delay)
+                else:
+                    print("Max retries reached, returning 0.0")
+                    return 0.0
 
     def get_rise_reward(self, response: str) -> float:
         """
@@ -304,8 +314,6 @@ class LLMEvaluator:
             ground_truth_key: Key in the data containing ground truth answer
             test_mode: If True, only evaluate the first response and print detailed information
         """
-        import time
-        import os
         start_time = time.time()
         
         with open(responses_file, 'r') as f:
