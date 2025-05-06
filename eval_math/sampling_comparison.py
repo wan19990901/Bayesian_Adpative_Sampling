@@ -28,15 +28,8 @@ def update_parameters(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, use_ada
     # Original update logic
     z_k_plus = max(z_k, y)
     mu_k_plus = mu_k + (y - mu_k) / (nu0 + k + 1)
-    
-    if k < 3:  # k_0 = 3
-        nu_k = nu0 + k
-        alpha_k = alpha0 + k/2
-        beta_k = beta0 + (k * nu0 / (nu0 + k)) * ((mu_k - mu0)**2)
-        sigma_k_plus = math.sqrt((1 + 1/nu_k) * (2*beta_k / (2*alpha_k)))
-    else:
-        L_k_plus = math.sqrt((1 - (1/(nu0 + k + 1))**2) / (2*alpha0 + k + 1))
-        sigma_k_plus = L_k_plus * math.sqrt((2*alpha0 + k) * sigma_k**2 + (y - mu_k)**2)
+    L_k_plus = math.sqrt((1 - (1/(nu0 + k + 1))**2) / (2*alpha0 + k + 1))
+    sigma_k_plus = L_k_plus * math.sqrt((2*alpha0 + k) * sigma_k**2 + (y - mu_k)**2)
     
     return z_k_plus, mu_k_plus, sigma_k_plus
 
@@ -56,15 +49,8 @@ def adaptive_ignore_update(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, al
 
     # Update mu and sigma normally using y_adj
     mu_k_plus = mu_k + (y_adj - mu_k) / (nu0 + k + 1)
-
-    if k < 3:
-        nu_k = nu0 + k
-        alpha_k = alpha0 + k / 2
-        beta_k = beta0 + (k * nu0 / (nu0 + k)) * ((mu_k - mu0)**2)
-        sigma_k_plus = math.sqrt((1 + 1 / nu_k) * (2 * beta_k / (2 * alpha_k)))
-    else:
-        L_k_plus = math.sqrt((1 - (1 / (nu0 + k + 1))**2) / (2 * alpha0 + k + 1))
-        sigma_k_plus = L_k_plus * math.sqrt((2 * alpha0 + k) * sigma_k**2 + (y_adj - mu_k)**2)
+    L_k_plus = math.sqrt((1 - (1 / (nu0 + k + 1))**2) / (2 * alpha0 + k + 1))
+    sigma_k_plus = L_k_plus * math.sqrt((2 * alpha0 + k) * sigma_k**2 + (y_adj - mu_k)**2)
 
     return z_k_plus, mu_k_plus, sigma_k_plus
 
