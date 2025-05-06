@@ -114,7 +114,7 @@ class SamplingComparison:
         # BOS Prior Parameters (can be tuned)
         self.alpha0 = -0.5
         self.nu0 = 0
-        self.beta0 = 1.0
+        self.beta0 = 0.0
         self.mu0 = 0.0
 
         if results_file:
