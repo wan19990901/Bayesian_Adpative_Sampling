@@ -34,7 +34,7 @@ def update_parameters(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, use_ada
     return z_k_plus, mu_k_plus, sigma_k_plus
 
 @njit
-def adaptive_ignore_update(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, alpha=0.025):
+def adaptive_ignore_update(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, alpha=0.01):
     """
     Update parameters with adaptive ignoring of extreme low observations.
     """
