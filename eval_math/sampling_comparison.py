@@ -129,16 +129,17 @@ class SamplingComparison:
         # self.evaluator = LLMEvaluator(use_nemotron=True, use_rise=False)
 
         # BOS Prior Parameters (can be tuned)
-        self.alpha0 = 0.5
-        self.nu0 = 1.0
+        self.alpha0 = -0.5
+        self.nu0 = 0
         self.beta0 = 1.0
         self.mu0 = 0.0
 
         # Pre-compute h_matrix for dynamic sampling
-        self.G = 200  # Grid size
-        self.n = 30   # Max iterations
+        self.G = 100  # Grid size
+        self.n = n_total  # revise this to get aligned to n_total
         self.h_matrix, self.z_grid = self._compute_h_matrix()
 
+    # COMMENT (You )
     def _compute_h_matrix(self):
         """
         Compute the h-index matrix for dynamic sampling.
