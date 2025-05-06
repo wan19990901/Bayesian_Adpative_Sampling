@@ -7,64 +7,65 @@ import os
 from llm_evaluator import LLMEvaluator
 import math
 from numba import njit
+from h_index_construction import (
+    _t_pdf, _norm_pdf, _t_cdf, _norm_cdf, _norm_ppf, _t_ppf,
+    H_myopic_jit, h_index_full, h_index_value
+)
 
 # --- Bayesian Optimal Stopping (BOS) Helper Functions (Updated) ---
 @njit
-def _t_pdf(x, df):
-    """
-    Compute the probability density function (PDF) of the t-distribution.
-    """
-    return (1 + x**2/df)**(-(df+1)/2) * math.gamma((df+1)/2) / (math.sqrt(df*math.pi) * math.gamma(df/2))
-
-@njit
-def _norm_pdf(x):
-    """
-    Compute the probability density function (PDF) of the normal distribution.
-    """
-    return math.exp(-0.5 * x**2) / math.sqrt(2 * math.pi)
-
-@njit
-def _t_cdf(x, df):
-    """
-    Compute the cumulative distribution function (CDF) of the t-distribution.
-    """
-    if x == 0:
-        return 0.5
-    elif x > 0:
-        return 1 - 0.5 * (1 - math.erf(x/math.sqrt(2)))
-    else:
-        return 0.5 * (1 - math.erf(-x/math.sqrt(2)))
-
-@njit
-def _norm_cdf(x):
-    """
-    Compute the cumulative distribution function (CDF) of the normal distribution.
-    """
-    return 0.5 * (1 + math.erf(x/math.sqrt(2)))
-
-@njit
-def update_parameters(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0):
+def update_parameters(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, use_adaptive_ignore=False, alpha=0.01):
     """
     Update the parameters z_k, mu_k, and sigma_k based on the new observation y.
-    """
-    # Update z_k
-    z_k_plus = max(z_k, y)
     
-    # Update mu_k
+    Args:
+        use_adaptive_ignore: If True, uses adaptive ignore update strategy
+        alpha: Threshold for adaptive ignore (default: 0.01)
+    """
+    if use_adaptive_ignore:
+        return adaptive_ignore_update(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, alpha)
+    
+    # Original update logic
+    z_k_plus = max(z_k, y)
     mu_k_plus = mu_k + (y - mu_k) / (nu0 + k + 1)
     
-    # Update sigma_k
     if k < 3:  # k_0 = 3
-        # For k < k_0, use the given formula
         nu_k = nu0 + k
         alpha_k = alpha0 + k/2
         beta_k = beta0 + (k * nu0 / (nu0 + k)) * ((mu_k - mu0)**2)
         sigma_k_plus = math.sqrt((1 + 1/nu_k) * (2*beta_k / (2*alpha_k)))
     else:
-        # For k >= k_0, use the update formula
         L_k_plus = math.sqrt((1 - (1/(nu0 + k + 1))**2) / (2*alpha0 + k + 1))
         sigma_k_plus = L_k_plus * math.sqrt((2*alpha0 + k) * sigma_k**2 + (y - mu_k)**2)
     
+    return z_k_plus, mu_k_plus, sigma_k_plus
+
+@njit
+def adaptive_ignore_update(z_k, mu_k, sigma_k, y, k, alpha0, nu0, beta0, mu0, alpha=0.01):
+    """
+    Update parameters with adaptive ignoring of extreme low observations.
+    """
+    df_k = 2 * alpha0 + k
+    threshold_k = mu_k + sigma_k * _t_ppf(alpha, df_k)
+
+    # Ignore update if below threshold, use mu_k as observation
+    y_adj = y if y >= threshold_k else mu_k  # effectively ignoring extreme observation
+    
+    # Update best offer
+    z_k_plus = max(z_k, y)
+
+    # Update mu and sigma normally using y_adj
+    mu_k_plus = mu_k + (y_adj - mu_k) / (nu0 + k + 1)
+
+    if k < 3:
+        nu_k = nu0 + k
+        alpha_k = alpha0 + k / 2
+        beta_k = beta0 + (k * nu0 / (nu0 + k)) * ((mu_k - mu0)**2)
+        sigma_k_plus = math.sqrt((1 + 1 / nu_k) * (2 * beta_k / (2 * alpha_k)))
+    else:
+        L_k_plus = math.sqrt((1 - (1 / (nu0 + k + 1))**2) / (2 * alpha0 + k + 1))
+        sigma_k_plus = L_k_plus * math.sqrt((2 * alpha0 + k) * sigma_k**2 + (y_adj - mu_k)**2)
+
     return z_k_plus, mu_k_plus, sigma_k_plus
 
 @njit
@@ -100,102 +101,70 @@ def compute_initial_parameters(x_values, alpha0, nu0, beta0, mu0):
     
     return z_k, mu_k, sigma_k
 
-@njit
-def H_myopic_jit(recall, sigma_flag, z, k, alpha0):
-    """
-    Compute the myopic H-function value.
-    """
-    if recall == 1:
-        if sigma_flag == 0:
-            df = 2 * alpha0 + k
-            return ((df + z**2) / (df - 1)) * _t_pdf(z, df) - z * (1 - _t_cdf(z, df))
-        else:  # sigma known
-            return _norm_pdf(z) - z * (1 - _norm_cdf(z))
-    else:  # recall = 0
-        return -z
-
 # --- SamplingComparison Class ---
 class SamplingComparison:
-    def __init__(self, results_file: str):
+    def __init__(self, n_total: int, results_file: str = None):
         """
         Initialize the sampling comparison.
 
         Args:
-            results_file: Path to the evaluation results file
+            n_total: Maximum number of samples to consider
+            results_file: Path to the evaluation results file (optional in debug mode)
         """
-        with open(results_file, 'r') as f:
-            self.results = json.load(f)
-        # Assuming evaluator is not needed here anymore, or handle its init
-        # self.evaluator = LLMEvaluator(use_nemotron=True, use_rise=False)
-
         # BOS Prior Parameters (can be tuned)
         self.alpha0 = -0.5
         self.nu0 = 0
         self.beta0 = 1.0
         self.mu0 = 0.0
 
+        if results_file:
+            with open(results_file, 'r') as f:
+                self.results = json.load(f)
+            
+            # Get actual number of responses from the first question
+            first_question = next(iter(self.results.get("detailed_results", [])), None)
+            if not first_question or not first_question.get("responses"):
+                raise ValueError("No responses found in the results file")
+            
+            actual_n_total = len(first_question["responses"])
+            self.n_total = min(n_total, actual_n_total)
+            if n_total > actual_n_total:
+                print(f"Warning: Requested n_total ({n_total}) exceeds available samples ({actual_n_total}). Using {self.n_total} samples.")
+        else:
+            # In debug mode, just use the provided n_total
+            self.n_total = n_total
+
         # Pre-compute h_matrix for dynamic sampling
         self.G = 100  # Grid size
-        self.n = n_total  # revise this to get aligned to n_total
+        self.n = self.n_total  # Use n_total for consistency
         self.h_matrix, self.z_grid = self._compute_h_matrix()
 
-    # COMMENT (You )
     def _compute_h_matrix(self):
         """
         Compute the h-index matrix for dynamic sampling.
+        Skip calculations for k < 3 due to prior specification issues.
+        Rows 0 and 1 (k=0,1) will be zeros, row 2 (k=3) will be computed.
         """
-        # Build grids
-        c = np.zeros(self.G+2)
-        z = np.zeros(self.G+2)
-        for j in range(self.G+2):
-            c[j] = self.G * (0.85)**j  # rho = 0.85
-            z[j] = 30 * ((1-0.75)*(2*j - self.G - 1)/(self.G-1) + 0.75*((2*j - self.G - 1)/(self.G-1))**3)
-        c[self.G+1] = 0
-
-        # Compute h_matrix
-        h_matrix = np.zeros((self.n+1, self.G+2))
-        for k in range(self.n-1, 0, -1):
-            for j_z in range(self.G, 0, -1):
-                h_val = H_myopic_jit(1, 0, z[j_z], k, self.alpha0)
-                if k < self.n-1:
-                    for j_u in range(self.G, 0, -1):
-                        mu_u = 1 / (self.nu0 + k + 1)
-                        L = math.sqrt((1 - mu_u**2) / (2*self.alpha0 + k + 1))
-                        s = L * math.sqrt(2*self.alpha0 + k + z[j_u]**2)
-                        z_new = (max(z[j_z], z[j_u]) - z[j_u]*mu_u) / s
-                        if k == self.n-2:
-                            H_u = H_myopic_jit(1, 0, z_new, k+1, self.alpha0)
-                        else:
-                            j_1 = self.G
-                            while j_1 > 1 and z_new < z[j_1]:
-                                j_1 -= 1
-                            if j_1 == self.G:
-                                j_1 = self.G-1
-                            theta_z = (z_new - z[j_1]) / (z[j_1+1] - z[j_1])
-                            H_u = (1-theta_z)*h_matrix[k+1,j_1] + theta_z*h_matrix[k+1,j_1+1]
-                        density = _t_pdf(z[j_u], df=2*self.alpha0+k)
-                        dz = (z[j_u+1] - z[j_u-1]) / 2
-                        h_val += s * max(0, H_u) * density * dz
-                h_matrix[k, j_z] = h_val
-
-        return h_matrix, z
+        print("Starting h_matrix computation...")
+        # Use the h_index_construction module to compute the matrix
+        h_matrix, z_grid = h_index_full(
+            recall=1,  # With recall
+            mu_flag=0,  # Unknown mean
+            sigma_flag=0,  # Unknown variance
+            alpha0=self.alpha0,
+            nu0=self.nu0,
+            n=self.n,
+            G=self.G
+        )
+        
+        print("Note: H matrix values for k < 3 (indices 0,1) are set to 0 due to prior specification issues")
+        return h_matrix, z_grid
 
     def _get_h_value(self, k: int, z_val: float) -> float:
         """
         Get the interpolated h(k, z) value from h_matrix.
         """
-        j = self.G
-        while j > 0 and z_val < self.z_grid[j]:
-            j -= 1
-        if j == self.G:
-            j = self.G-1
-
-        if (self.z_grid[j+1] - self.z_grid[j]) == 0:
-            theta = 0
-        else:
-            theta = (z_val - self.z_grid[j]) / (self.z_grid[j+1] - self.z_grid[j])
-        
-        return (1-theta) * self.h_matrix[k, j] + theta * self.h_matrix[k, j+1]
+        return h_index_value(self.h_matrix, self.z_grid, k, z_val)
 
     def _run_bos_sampling(self, responses: List[Dict], cost_threshold: float, use_myopic_h: bool) -> Dict:
         """
@@ -525,6 +494,22 @@ class SamplingComparison:
             serializable_results = json.loads(json.dumps(results, cls=NpEncoder))
             json.dump(serializable_results, f, indent=2)
 
+    def save_h_matrix(self, output_file: str):
+        """
+        Save the H matrix to a CSV file.
+        """
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
+        # Save h_matrix
+        np.savetxt(output_file, self.h_matrix, delimiter=',')
+        
+        # Save z_grid in a separate file with '_z_grid' suffix
+        z_grid_file = output_file.replace('.csv', '_z_grid.csv')
+        np.savetxt(z_grid_file, self.z_grid, delimiter=',')
+        
+        print(f"H matrix saved to {output_file}")
+        print(f"Z grid saved to {z_grid_file}")
+
 # Helper class to encode numpy types for JSON
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -540,31 +525,45 @@ class NpEncoder(json.JSONEncoder):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Compare different sampling methods using BOS")
-    parser.add_argument("--results_file", type=str, required=True,
-                      help="Path to evaluation results file (JSON)")
-    parser.add_argument("--output_dir", type=str, required=True,
-                      help="Directory to save comparison results and plots")
+    parser.add_argument("--results_file", type=str,
+                      help="Path to evaluation results file (JSON). Required unless in debug mode.")
+    parser.add_argument("--output_dir", type=str, default="results/",
+                      help="Directory to save comparison results and plots (default: results/)")
     parser.add_argument("--cost_thresholds", type=float, nargs='+',
                       default=[0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0],
                       help="List of cost thresholds 'c' for both Dynamic and Greedy Sampling")
+    parser.add_argument("--n_total", type=int, required=True,
+                      help="Maximum number of samples to consider")
+    parser.add_argument("--debug_mode", action="store_true",
+                      help="Only compute and save H matrix")
+    parser.add_argument("--h_matrix_output", type=str,
+                      help="Output file for H matrix in CSV format")
 
     args = parser.parse_args()
 
     # --- Input Validation ---
-    if not os.path.exists(args.results_file):
-        print(f"Error: Results file not found at {args.results_file}")
+    if not args.debug_mode and not args.results_file:
+        print("Error: results_file is required unless in debug mode")
         return
-    if not args.output_dir:
-         print("Error: Output directory must be specified.")
-         return
 
-    print(f"Loading results from: {args.results_file}")
+    if args.debug_mode:
+        print(f"Debug mode: Computing H matrix for n_total={args.n_total}")
+    else:
+        print(f"Loading results from: {args.results_file}")
     print(f"Saving comparison to: {args.output_dir}")
     print(f"Cost thresholds 'c' for both methods: {args.cost_thresholds}")
-
+    print(f"Using maximum of {args.n_total} samples")
 
     try:
-        comparison = SamplingComparison(args.results_file)
+        comparison = SamplingComparison(n_total=args.n_total, results_file=args.results_file)
+        
+        if args.debug_mode:
+            if not args.h_matrix_output:
+                args.h_matrix_output = os.path.join(args.output_dir, f'h_matrix_{args.n_total}.csv')
+            comparison.save_h_matrix(args.h_matrix_output)
+            print("Debug mode: Only H matrix was computed and saved")
+            return
+
         results = comparison.compare_methods(args.cost_thresholds)
 
         # Save and plot results
