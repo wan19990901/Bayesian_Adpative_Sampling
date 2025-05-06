@@ -218,10 +218,11 @@ class SamplingComparison:
                 # Continue: process next sample
                 new_reward = rewards[i]
 
-                # Update parameters (pass sigma_k which is std dev)
+                # Update parameters with adaptive ignore enabled
                 z_k, mu_k, sigma_k = update_parameters(
-                    z_k, mu_k, sigma_k, new_reward, i, # k is the index (number samples before this one)
-                    self.alpha0, self.nu0, self.beta0, self.mu0
+                    z_k, mu_k, sigma_k, new_reward, i,
+                    self.alpha0, self.nu0, self.beta0, self.mu0,
+                    use_adaptive_ignore=True, alpha=0.01  # Enable adaptive ignore with alpha=0.01
                 )
 
                 samples_used += 1

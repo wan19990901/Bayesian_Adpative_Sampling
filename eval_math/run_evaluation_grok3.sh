@@ -15,9 +15,9 @@ fi
 # Set variables
 PROVIDER="openai"
 MODEL_NAME="grok-3-mini-fast-beta"
-DATA_FILE="data/aime24/test.jsonl"
+DATA_FILE="data/math500/test.jsonl"
 OUTPUT_DIR="results/Raw_response"
-RESPONSES_FILE="${OUTPUT_DIR}/xai_responses_aime24.json"
+RESPONSES_FILE="${OUTPUT_DIR}/xai_responses_math500.json"
 START_ID=${1:-0}  # Default to 0 if no start ID provided
 NUM_RUNS=32  # Number of responses per question
 

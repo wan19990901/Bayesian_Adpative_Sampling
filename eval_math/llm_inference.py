@@ -38,15 +38,24 @@ class OpenAIProvider(BaseLLMProvider):
     def generate(self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int) -> str:
         for attempt in range(self.max_retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    temperature=temperature,
-                    max_tokens=max_tokens
-                )
+                # Create messages list
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+                
+                # Create completion parameters
+                completion_params = {
+                    "model": self.model_name,
+                    "messages": messages,
+                    "temperature": temperature
+                }
+                
+                # Only add max_tokens if it's not None
+                if max_tokens is not None:
+                    completion_params["max_tokens"] = max_tokens
+                
+                response = self.client.chat.completions.create(**completion_params)
                 
                 # Update token counts
                 if hasattr(response, 'usage'):
@@ -292,7 +301,9 @@ class LLMGenerator:
         base_url: str = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        num_samples: int = 1
+        num_samples: int = 1,
+        system_prompt: str = None,
+        example_prompt: str = None
     ):
         """
         Initialize the LLM generator.
@@ -305,10 +316,17 @@ class LLMGenerator:
             temperature: Sampling temperature (0.0 to 1.0)
             max_tokens: Maximum number of tokens to generate
             num_samples: Number of samples to generate per question
+            system_prompt: Optional custom system prompt (defaults to system_prompt.txt)
+            example_prompt: Optional custom example prompt (defaults to example_prompt.txt)
         """
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.num_samples = num_samples
+        self.model_name = model_name  # Store model_name as instance variable
+        
+        # Load prompts from files if not provided
+        self.system_prompt = system_prompt or self._load_prompt("system_prompt.txt")
+        self.example_prompt = example_prompt or self._load_prompt("example_prompt.txt")
         
         # Initialize the appropriate provider
         if provider == "openai":
@@ -322,12 +340,14 @@ class LLMGenerator:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
-        # Example problem for one-shot chain of thought
-        self.example_problem = {
-            "question": "If a triangle has sides of length 3, 4, and 5 units, what is its area?",
-            "thought": "Let me solve this step by step:\n1) This is a 3-4-5 triangle, which is a right triangle (by the Pythagorean theorem)\n2) For a right triangle, we can use the formula: Area = (base × height) ÷ 2\n3) Using the 3 and 4 as base and height: Area = (3 × 4) ÷ 2\n4) Area = 12 ÷ 2 = 6",
-            "answer": "6"
-        }
+    def _load_prompt(self, filename: str) -> str:
+        """Load a prompt from the prompts directory."""
+        prompt_path = os.path.join(os.path.dirname(__file__), "prompts", filename)
+        try:
+            with open(prompt_path, 'r') as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
 
     def load_math_problems(self, data_file: str) -> List[Dict]:
         """
@@ -346,53 +366,34 @@ class LLMGenerator:
                     problems.append(json.loads(line))
         return problems
 
-    def generate_response(self, prompt: str) -> str:
+    def generate_response(self, question: str) -> str:
         """
-        Generate a response from the LLM for a given prompt with chain-of-thought.
+        Generate a response for a single question using the system prompt and example.
+        
+        Args:
+            question: The math problem question
+            
+        Returns:
+            Generated response string
         """
-        system_prompt = """You are a helpful math assistant. Solve the following math problem step by step.
-Always provide a complete solution with clear reasoning and a final answer.
-
-Format your response as:
-1. Start with "Let me solve this step by step:"
-2. Break down the solution into numbered steps
-3. For each step, explain your reasoning
-4. End with "Therefore, the answer is X." where X is the final answer
-
-Example:
-Let me solve this step by step:
-1) First step explanation
-2) Second step explanation
-...
-N) Final step explanation
-Therefore, the answer is X."""
+        # Combine system prompt, example, and question
+        user_prompt = f"{self.example_prompt}\n\nQuestion: {question}"
         
-        # Simplify the example to reduce token usage
-        example = """Question: If a triangle has sides of length 3, 4, and 5 units, what is its area?
-Let me solve this step by step:
-1) This is a 3-4-5 triangle, which is a right triangle
-2) For a right triangle, area = (base × height) ÷ 2
-3) Using 3 and 4 as base and height: area = (3 × 4) ÷ 2
-4) Area = 12 ÷ 2 = 6
-Therefore, the answer is 6."""
-
-        cot_prompt = f"""Here's an example of how to solve a math problem:
-
-{example}
-
-Now solve this problem:
-{prompt}
-Let me solve this step by step:"""
-
-        # Try with different temperatures if we get empty responses
-        temperatures = [0.7, 0.5, 0.3]
-        for temp in temperatures:
-            response = self.llm.generate(system_prompt, cot_prompt, temp, self.max_tokens)
-            if response and not response.startswith("ERROR:"):
-                return response
-            print(f"  Trying with temperature {temp}...")
+        # Remove max_tokens restriction for Grok model
+        if self.model_name == "grok-3-mini-fast-beta":
+            return self.llm.generate(
+                system_prompt=self.system_prompt,
+                user_prompt=user_prompt,
+                temperature=self.temperature,
+                max_tokens=None
+            )
         
-        return response  # Return the last response (even if empty or error)
+        return self.llm.generate(
+            system_prompt=self.system_prompt,
+            user_prompt=user_prompt,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
 
     def generate_responses(
         self,
@@ -464,7 +465,7 @@ Let me solve this step by step:"""
             
             for run_num in range(remaining_runs):
                 print(f"  Generating response {run_num + 1}/{remaining_runs} for problem {problem_id}...")
-                response = self.generate_response(problem["question"])
+                response = self.generate_response(problem["problem"])
                 if not response.strip():
                     empty_responses += 1
                     print(f"  Warning: Empty response for problem {problem_id}")
@@ -476,8 +477,9 @@ Let me solve this step by step:"""
                 # Update the file after each response
                 result = {
                     "id": problem_id,
-                    "question": problem["question"],
-                    "ground_truth": problem.get("ground_truth", ""),
+                    "problem": problem["problem"],
+                    "solution": problem.get("solution", ""),
+                    "answer": problem.get("answer", ""),
                     "responses": responses
                 }
                 # Only add token stats for new problems

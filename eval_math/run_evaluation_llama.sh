@@ -15,9 +15,9 @@ fi
 # Set variables
 PROVIDER="deepinfra"
 MODEL_NAME="meta-llama/Llama-3.2-3B-Instruct"
-DATA_FILE="data/amc23/test.jsonl"
+DATA_FILE="data/math500/test.jsonl"
 OUTPUT_DIR="results/Raw_response"
-RESPONSES_FILE="${OUTPUT_DIR}/llama_responses_amc23.json"
+RESPONSES_FILE="${OUTPUT_DIR}/llama_responses_math500.json"
 START_ID=${1:-0}  # Default to 0 if no start ID provided
 NUM_RUNS=32  # Number of responses per question
 

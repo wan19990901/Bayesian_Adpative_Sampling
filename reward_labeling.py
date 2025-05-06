@@ -1627,6 +1627,65 @@ def get_rise_reward(text: str) -> float:
         scores = torch.sigmoid(outputs.logits)
     return scores.item()
 
+def get_skywork_reward(text: str) -> float:
+    """
+    Get reward score from Skywork/Skywork-Reward-Llama-3.1-8B-v0.2 model.
+    """
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    model_name = "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2"
+    
+    # Initialize model and tokenizer (only once)
+    if not hasattr(get_skywork_reward, 'model'):
+        get_skywork_reward.model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            torch_dtype=torch.bfloat16,
+            device_map=device,
+            num_labels=1,
+        )
+        get_skywork_reward.tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    # Format the conversation
+    conv = [{"role": "user", "content": text}, {"role": "assistant", "content": text}]
+    
+    # Tokenize and get reward score
+    try:
+        conv_tokenized = get_skywork_reward.tokenizer.apply_chat_template(
+            conv, 
+            tokenize=True, 
+            return_tensors="pt"
+        ).to(device)
+        
+        with torch.no_grad():
+            score = get_skywork_reward.model(conv_tokenized).logits[0][0].item()
+        return score
+    except Exception as e:
+        print(f"Error getting Skywork reward score: {e}")
+        return 0.0
+
+def get_reward_scores(text: str, use_nemotron: bool = False, use_rise: bool = False, use_skywork: bool = False) -> Dict[str, float]:
+    """
+    Get reward scores from different models.
+    
+    Args:
+        text: The text to evaluate
+        use_nemotron: Whether to use NVIDIA's Nemotron reward model
+        use_rise: Whether to use RISE reward model
+        use_skywork: Whether to use Skywork reward model
+        
+    Returns:
+        Dictionary containing reward scores from selected models
+    """
+    scores = {}
+    
+    if use_nemotron:
+        scores["nemotron"] = get_nemotron_reward(text)
+    if use_rise:
+        scores["rise"] = get_rise_reward(text)
+    if use_skywork:
+        scores["skywork"] = get_skywork_reward(text)
+        
+    return scores
+
 if __name__ == "__main__":
     script_args = parser.parse_args_into_dataclasses()[0]
     main(script_args)

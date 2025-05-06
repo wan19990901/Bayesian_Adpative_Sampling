@@ -21,7 +21,9 @@ load_dotenv()
 
 class LLMEvaluator:
     def __init__(self, use_nemotron: bool = True, use_rise: bool = False, nemotron_api_base: str = "https://integrate.api.nvidia.com/v1"):
-        self.answer_pattern = re.compile(r"Therefore, the answer is\s*(\d+)")
+        # Define patterns for both old and new answer formats
+        self.old_answer_pattern = re.compile(r"Therefore, the answer is\s*(\d+)")
+        self.boxed_answer_pattern = re.compile(r'\$\$\\boxed{([^}]+)}\$\$')
         self.use_nemotron = use_nemotron
         self.use_rise = use_rise
         
@@ -45,12 +47,12 @@ class LLMEvaluator:
                 raise ValueError("HUGGINGFACE_TOKEN environment variable is not set. Please set it in your .env file.")
                 
             # Initialize RISE model with token
-            self.rise_tokenizer = AutoTokenizer.from_pretrained(
-                "R-I-S-E/RISE-Judge-Qwen2.5-32B",
+            self.skywork_tokenizer = AutoTokenizer.from_pretrained(
+                "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2",
                 token=hf_token
             )
-            self.rise_model = AutoModelForSequenceClassification.from_pretrained(
-                "R-I-S-E/RISE-Judge-Qwen2.5-32B",
+            self.skywork_model = AutoModelForSequenceClassification.from_pretrained(
+                "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2", 
                 token=hf_token
             )
 
@@ -90,11 +92,28 @@ class LLMEvaluator:
         if current_step:
             reasoning.append(current_step)
             
-        # Extract final answer
+        # Try to extract final answer using both formats
         final_answer = None
-        answer_match = self.answer_pattern.search(response)
-        if answer_match:
-            final_answer = answer_match.group(1)
+        
+        # First try the new boxed format
+        boxed_match = self.boxed_answer_pattern.search(response)
+        if boxed_match:
+            final_answer = boxed_match.group(1)
+            # Handle fractions and negative numbers
+            if '\\frac' in final_answer:
+                # Convert LaTeX fraction to decimal
+                try:
+                    num, den = final_answer.replace('\\frac{', '').replace('}', '').split('}{')
+                    final_answer = str(float(num) / float(den))
+                except:
+                    pass
+            elif '-' in final_answer:
+                final_answer = final_answer.replace('-', '')
+        else:
+            # If boxed format not found, try the old format
+            old_match = self.old_answer_pattern.search(response)
+            if old_match:
+                final_answer = old_match.group(1)
             
         return {
             "reasoning": reasoning,
@@ -157,18 +176,18 @@ class LLMEvaluator:
                     print("Max retries reached, returning 0.0")
                     return 0.0
 
-    def get_rise_reward(self, response: str) -> float:
+    def get_skywork_reward(self, response: str) -> float:
         """
-        Get reward score from RISE model using HuggingFace token.
+        Get reward score from Skywork model using HuggingFace token.
         """
         try:
-            inputs = self.rise_tokenizer(response, return_tensors="pt", truncation=True, max_length=512)
+            inputs = self.skywork_tokenizer(response, return_tensors="pt", truncation=True, max_length=512)
             with torch.no_grad():
-                outputs = self.rise_model(**inputs)
+                outputs = self.skywork_model(**inputs)
                 scores = torch.sigmoid(outputs.logits)
             return scores.item()
         except Exception as e:
-            print(f"Error getting RISE reward: {e}")
+            print(f"Error getting Skywork reward: {e}")
             return 0.0
 
     def compute_reward_scores(self, prompt: str, response: str) -> Dict[str, float]:
@@ -359,7 +378,8 @@ class LLMEvaluator:
         for item in question_pbar:
             question_id = item.get("id")
             prompt = item.get("question")
-            ground_truth = item.get(ground_truth_key)
+            # Try to get ground truth from either ground_truth or answer field
+            ground_truth = item.get(ground_truth_key) or item.get("answer")
             responses = item.get("responses", [])
             
             # Skip if any required field is missing
@@ -393,7 +413,7 @@ class LLMEvaluator:
                 token_count = len(response.split())
                 
                 # Parse response and get final answer
-                answer_match = self.answer_pattern.search(response)
+                answer_match = self.boxed_answer_pattern.search(response)
                 final_answer = answer_match.group(1) if answer_match else None
                 
                 is_correct = False
