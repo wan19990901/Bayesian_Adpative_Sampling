@@ -271,70 +271,47 @@ class SamplingComparison:
     def self_consistency(self, responses: List[Dict]) -> Dict:
         """
         Use self-consistency (majority voting) to select the answer.
-        Reports reward of the *first* response matching the majority answer.
+        Uses pre-computed is_correct values from the evaluation file.
         """
         if not responses:
             return {"accuracy": 0.0, "avg_reward": 0.0, "samples_used": 0}
 
-        answers = [r.get("final_answer") for r in responses if r.get("final_answer") is not None]
-        if not answers:
-            # If no responses have final answers, fallback (e.g., return stats of first response)
-             if responses:
-                 first_resp = responses[0]
-                 return {"accuracy": 1.0 if first_resp["is_correct"] else 0.0,
-                         "avg_reward": first_resp["reward_scores"]["nemotron"],
-                         "samples_used": len(responses)}
-             else:
-                 return {"accuracy": 0.0, "avg_reward": 0.0, "samples_used": 0}
-
-
-        unique_answers, counts = np.unique(answers, return_counts=True)
-        majority_idx = np.argmax(counts)
-        majority_answer = unique_answers[majority_idx]
-
-        # Find the first response with the majority answer to report its stats
-        majority_response = None
-        for r in responses:
-            if r.get("final_answer") == majority_answer:
-                 majority_response = r
-                 break # Found the first one
-
-        # Handle case where majority answer was found but no corresponding response exists (shouldn't happen)
-        if majority_response is None:
-             # Fallback: use stats of the first response overall
-             majority_response = responses[0]
-
-
+        # Count correct and incorrect responses
+        correct_count = sum(1 for r in responses if r.get("is_correct", False))
+        total_count = len(responses)
+        
+        # Use the first response for reward reporting
+        first_response = responses[0]
+        
         return {
-            "accuracy": 1.0 if majority_response["is_correct"] else 0.0,
-            "avg_reward": majority_response["reward_scores"]["nemotron"],
-            "samples_used": len(responses) # SC always uses all samples
+            "accuracy": correct_count / total_count if total_count > 0 else 0.0,
+            "avg_reward": first_response["reward_scores"]["nemotron"],
+            "samples_used": total_count
         }
 
     def best_of_n(self, responses: List[Dict]) -> Dict:
         """
         Use all samples and pick the best one based on reward.
+        Uses pre-computed is_correct values from the evaluation file.
         """
         if not responses:
             return {"accuracy": 0.0, "avg_reward": 0.0, "samples_used": 0}
 
-        rewards = [r["reward_scores"]["nemotron"] for r in responses]
-        if not rewards: # Handle case where responses exist but rewards are missing
-             return {"accuracy": 0.0, "avg_reward": 0.0, "samples_used": len(responses)}
-
-        best_idx = np.argmax(rewards)
+        # Find the response with highest reward
+        best_idx = np.argmax([r["reward_scores"]["nemotron"] for r in responses])
         best_response = responses[best_idx]
 
         return {
             "accuracy": 1.0 if best_response["is_correct"] else 0.0,
             "avg_reward": best_response["reward_scores"]["nemotron"],
-            "samples_used": len(responses) # Best-of-N uses all samples
+            "samples_used": len(responses)
         }
 
     # --- Comparison Framework (Updated parameter names) ---
-    def compare_methods(self, cost_thresholds: List[float] = [0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0]) -> Dict:
+    def compare_methods(self, cost_thresholds: List[float] = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0]) -> Dict:
         """
         Compare different sampling methods.
+        Uses pre-computed accuracies from evaluation file where available.
 
         Args:
             cost_thresholds: List of cost thresholds 'c' for both dynamic and greedy sampling.
@@ -343,35 +320,47 @@ class SamplingComparison:
             Dictionary containing results for each method.
         """
         results = {
-            "random": {"accuracy": [], "avg_reward": [], "samples_used": []},
-            "self_consistency": {"accuracy": [], "avg_reward": [], "samples_used": []},
-            "best_of_n": {"accuracy": [], "avg_reward": [], "samples_used": []},
-            "dynamic": {t: {"accuracy": [], "avg_reward": [], "samples_used": []} for t in cost_thresholds},
-            "greedy": {t: {"accuracy": [], "avg_reward": [], "samples_used": []} for t in cost_thresholds}
+            "random": {"accuracy": [], "avg_reward": [], "samples_used": [], "value": []},
+            "self_consistency": {"accuracy": [], "avg_reward": [], "samples_used": [], "value": []},
+            "best_of_n": {"accuracy": [], "avg_reward": [], "samples_used": [], "value": []},
+            "dynamic": {t: {"accuracy": [], "avg_reward": [], "samples_used": [], "value": []} for t in cost_thresholds}
         }
 
+        # Get pre-computed accuracies from evaluation file
+        sc_acc = self.results.get("self_consistency_acc", 0.0)
+        bon_acc = self.results.get("best_of_n_accuracy", 0.0)
+        
         # Process each question
         for question_data in tqdm(self.results.get("detailed_results", []), desc="Processing questions"):
             responses = question_data.get("responses", [])
-            if not responses: continue # Skip if no responses for this question
+            if not responses: continue
 
             # Random sampling
             res = self.random_sampling(responses)
             results["random"]["accuracy"].append(res["accuracy"])
             results["random"]["avg_reward"].append(res["avg_reward"])
             results["random"]["samples_used"].append(res["samples_used"])
+            # Calculate value function for random sampling (using average cost)
+            avg_cost = np.mean(cost_thresholds)
+            results["random"]["value"].append(res["avg_reward"] - res["samples_used"] * avg_cost)
 
-            # Self-consistency
-            res = self.self_consistency(responses)
-            results["self_consistency"]["accuracy"].append(res["accuracy"])
-            results["self_consistency"]["avg_reward"].append(res["avg_reward"])
-            results["self_consistency"]["samples_used"].append(res["samples_used"])
+            # Use pre-computed self-consistency accuracy
+            results["self_consistency"]["accuracy"].append(sc_acc)
+            # Use first response's reward for self-consistency
+            first_reward = responses[0]["reward_scores"]["nemotron"]
+            results["self_consistency"]["avg_reward"].append(first_reward)
+            results["self_consistency"]["samples_used"].append(len(responses))
+            # Calculate value function for self-consistency
+            results["self_consistency"]["value"].append(first_reward - len(responses) * avg_cost)
 
-            # Best-of-N
-            res = self.best_of_n(responses)
-            results["best_of_n"]["accuracy"].append(res["accuracy"])
-            results["best_of_n"]["avg_reward"].append(res["avg_reward"])
-            results["best_of_n"]["samples_used"].append(res["samples_used"])
+            # Use pre-computed best-of-n accuracy
+            results["best_of_n"]["accuracy"].append(bon_acc)
+            # Use best response's reward for best-of-n
+            best_reward = max(r["reward_scores"]["nemotron"] for r in responses)
+            results["best_of_n"]["avg_reward"].append(best_reward)
+            results["best_of_n"]["samples_used"].append(len(responses))
+            # Calculate value function for best-of-n
+            results["best_of_n"]["value"].append(best_reward - len(responses) * avg_cost)
 
             # Dynamic sampling (BOS Approx)
             for t in cost_thresholds:
@@ -379,25 +368,22 @@ class SamplingComparison:
                 results["dynamic"][t]["accuracy"].append(res["accuracy"])
                 results["dynamic"][t]["avg_reward"].append(res["avg_reward"])
                 results["dynamic"][t]["samples_used"].append(res["samples_used"])
+                # Calculate value function for dynamic sampling
+                results["dynamic"][t]["value"].append(res["avg_reward"] - res["samples_used"] * t)
 
-            # Greedy dynamic sampling (Myopic BOS)
-            for t in cost_thresholds:
-                res = self.greedy_dynamic_sampling(responses, t)
-                results["greedy"][t]["accuracy"].append(res["accuracy"])
-                results["greedy"][t]["avg_reward"].append(res["avg_reward"])
-                results["greedy"][t]["samples_used"].append(res["samples_used"])
-
-        # Calculate averages safely (handle empty lists)
+        # Calculate averages
         for method, method_results in results.items():
-            if method in ["dynamic", "greedy"]:
+            if method == "dynamic":
                 for t, threshold_results in method_results.items():
                     results[method][t]["accuracy"] = np.mean(threshold_results["accuracy"]) if threshold_results["accuracy"] else 0.0
                     results[method][t]["avg_reward"] = np.mean(threshold_results["avg_reward"]) if threshold_results["avg_reward"] else 0.0
                     results[method][t]["samples_used"] = np.mean(threshold_results["samples_used"]) if threshold_results["samples_used"] else 0.0
+                    results[method][t]["value"] = np.mean(threshold_results["value"]) if threshold_results["value"] else 0.0
             else:
                 results[method]["accuracy"] = np.mean(method_results["accuracy"]) if method_results["accuracy"] else 0.0
                 results[method]["avg_reward"] = np.mean(method_results["avg_reward"]) if method_results["avg_reward"] else 0.0
                 results[method]["samples_used"] = np.mean(method_results["samples_used"]) if method_results["samples_used"] else 0.0
+                results[method]["value"] = np.mean(method_results["value"]) if method_results["value"] else 0.0
 
         return results
 
@@ -426,12 +412,6 @@ class SamplingComparison:
         if dynamic_samples:
              plt.plot(dynamic_samples, dynamic_accuracy, 'o-', label='Dynamic Sampling (BOS Approx)', color='purple', linewidth=2)
 
-        greedy_samples = [results["greedy"][t]["samples_used"] for t in sorted(results["greedy"].keys())]
-        greedy_accuracy = [results["greedy"][t]["accuracy"] for t in sorted(results["greedy"].keys())]
-        if greedy_samples:
-             plt.plot(greedy_samples, greedy_accuracy, 's--', label='Greedy Sampling (Myopic BOS)', color='orange', linewidth=2)
-
-
         plt.xlabel('Average Samples Used', fontsize=12)
         plt.ylabel('Accuracy', fontsize=12)
         plt.title('Sampling Method Performance: Accuracy vs. Samples Used', fontsize=14)
@@ -457,10 +437,6 @@ class SamplingComparison:
         if dynamic_samples: # Reuse samples from accuracy plot
              plt.plot(dynamic_samples, dynamic_rewards, 'o-', label='Dynamic Sampling (BOS Approx)', color='purple', linewidth=2)
 
-        greedy_rewards = [results["greedy"][t]["avg_reward"] for t in sorted(results["greedy"].keys())]
-        if greedy_samples: # Reuse samples from accuracy plot
-             plt.plot(greedy_samples, greedy_rewards, 's--', label='Greedy Sampling (Myopic BOS)', color='orange', linewidth=2)
-
         plt.xlabel('Average Samples Used', fontsize=12)
         plt.ylabel('Average Nemotron Reward', fontsize=12)
         plt.title('Sampling Method Performance: Reward vs. Samples Used', fontsize=14)
@@ -468,6 +444,31 @@ class SamplingComparison:
         plt.grid(True, which='both', linestyle='--', linewidth=0.5)
         plt.tight_layout()
         plt.savefig(os.path.join(output_dir, 'reward_vs_samples.png'), dpi=300)
+        plt.close()
+
+        # Plot value function vs samples used
+        plt.figure(figsize=(12, 7))
+
+        # Static methods (points)
+        plt.scatter(results["random"]["samples_used"], results["random"]["value"],
+                   label=f'Random (1 sample)', color='blue', s=100, marker='s', zorder=5)
+        plt.scatter(results["best_of_n"]["samples_used"], results["best_of_n"]["value"],
+                   label=f'Best-of-N ({results["best_of_n"]["samples_used"]:.1f} samples)', color='green', s=100, marker='^', zorder=5)
+        plt.scatter(results["self_consistency"]["samples_used"], results["self_consistency"]["value"],
+                   label=f'Self-Consistency ({results["self_consistency"]["samples_used"]:.1f} samples)', color='red', s=100, marker='o', zorder=5)
+
+        # Dynamic methods (lines)
+        dynamic_values = [results["dynamic"][t]["value"] for t in sorted(results["dynamic"].keys())]
+        if dynamic_samples: # Reuse samples from accuracy plot
+             plt.plot(dynamic_samples, dynamic_values, 'o-', label='Dynamic Sampling (BOS Approx)', color='purple', linewidth=2)
+
+        plt.xlabel('Average Samples Used', fontsize=12)
+        plt.ylabel('Value Function (Reward - Samples * Cost)', fontsize=12)
+        plt.title('Sampling Method Performance: Value Function vs. Samples Used', fontsize=14)
+        plt.legend(fontsize=10)
+        plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'value_vs_samples.png'), dpi=300)
         plt.close()
 
     def save_results(self, results: Dict, output_file: str):
@@ -508,6 +509,110 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
 
+def analyze_stopping_points(responses_file: str, cost: float = 0.3, output_dir: str = "results/stopping_analysis"):
+    """
+    Analyze how stopping at different points affects the value function with a fixed cost.
+    
+    Args:
+        responses_file: Path to the evaluation results file
+        cost: Fixed cost per sample (default: 0.3)
+        output_dir: Directory to save the analysis plots
+    """
+    # Load results
+    with open(responses_file, 'r') as f:
+        results = json.load(f)
+    
+    # Initialize arrays to store metrics
+    n_samples = 32  # Maximum number of samples to consider
+    avg_rewards = np.zeros(n_samples)
+    avg_correct = np.zeros(n_samples)
+    value_functions = np.zeros(n_samples)
+    sample_counts = np.zeros(n_samples)
+    
+    # Process each question
+    for question_data in tqdm(results.get("detailed_results", []), desc="Analyzing stopping points"):
+        responses = question_data.get("responses", [])
+        if not responses:
+            continue
+            
+        # Get rewards and correctness
+        rewards = [r["reward_scores"]["nemotron"] for r in responses]
+        correct = [r["is_correct"] for r in responses]
+        
+        # For each possible stopping point
+        for k in range(min(n_samples, len(responses))):
+            # Get best reward up to this point
+            best_reward = max(rewards[:k+1])
+            best_idx = rewards[:k+1].index(best_reward)
+            is_correct = correct[best_idx]
+            
+            # Calculate value function
+            value = best_reward - (k+1) * cost
+            
+            # Update averages
+            avg_rewards[k] += best_reward
+            avg_correct[k] += is_correct
+            value_functions[k] += value
+            sample_counts[k] += 1
+    
+    # Calculate averages
+    for k in range(n_samples):
+        if sample_counts[k] > 0:
+            avg_rewards[k] /= sample_counts[k]
+            avg_correct[k] /= sample_counts[k]
+            value_functions[k] /= sample_counts[k]
+    
+    # Create plots
+    os.makedirs(output_dir, exist_ok=True)
+    plt.style.use('seaborn-v0_8-whitegrid')
+    
+    # Plot value function vs stopping point
+    plt.figure(figsize=(12, 7))
+    plt.plot(range(1, n_samples+1), value_functions, 'o-', color='purple', linewidth=2)
+    plt.xlabel('Stopping Point (Number of Samples)', fontsize=12)
+    plt.ylabel(f'Value Function (Reward - Samples * {cost})', fontsize=12)
+    plt.title(f'Value Function vs Stopping Point (Cost = {cost})', fontsize=14)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'value_vs_stopping_cost_{cost}.png'), dpi=300)
+    plt.close()
+    
+    # Plot accuracy vs stopping point
+    plt.figure(figsize=(12, 7))
+    plt.plot(range(1, n_samples+1), avg_correct, 'o-', color='blue', linewidth=2)
+    plt.xlabel('Stopping Point (Number of Samples)', fontsize=12)
+    plt.ylabel('Accuracy', fontsize=12)
+    plt.title(f'Accuracy vs Stopping Point (Cost = {cost})', fontsize=14)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'accuracy_vs_stopping_cost_{cost}.png'), dpi=300)
+    plt.close()
+    
+    # Plot reward vs stopping point
+    plt.figure(figsize=(12, 7))
+    plt.plot(range(1, n_samples+1), avg_rewards, 'o-', color='green', linewidth=2)
+    plt.xlabel('Stopping Point (Number of Samples)', fontsize=12)
+    plt.ylabel('Average Best Reward', fontsize=12)
+    plt.title(f'Best Reward vs Stopping Point (Cost = {cost})', fontsize=14)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'reward_vs_stopping_cost_{cost}.png'), dpi=300)
+    plt.close()
+    
+    # Print summary
+    print(f"\n=== Stopping Point Analysis (Cost = {cost}) ===")
+    best_stopping = np.argmax(value_functions) + 1
+    print(f"Best stopping point: {best_stopping} samples")
+    print(f"Value at best stopping point: {value_functions[best_stopping-1]:.3f}")
+    print(f"Accuracy at best stopping point: {avg_correct[best_stopping-1]:.3f}")
+    print(f"Average reward at best stopping point: {avg_rewards[best_stopping-1]:.3f}")
+    
+    return {
+        "best_stopping": best_stopping,
+        "value_functions": value_functions,
+        "accuracies": avg_correct,
+        "rewards": avg_rewards
+    }
 
 def main():
     import argparse
@@ -517,7 +622,7 @@ def main():
     parser.add_argument("--output_dir", type=str, default="results/",
                       help="Directory to save comparison results and plots (default: results/)")
     parser.add_argument("--cost_thresholds", type=float, nargs='+',
-                      default=[0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0],
+                      default=[0.001, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0],
                       help="List of cost thresholds 'c' for both Dynamic and Greedy Sampling")
     parser.add_argument("--n_total", type=int, required=True,
                       help="Maximum number of samples to consider")
@@ -525,6 +630,10 @@ def main():
                       help="Only compute and save H matrix")
     parser.add_argument("--h_matrix_output", type=str,
                       help="Output file for H matrix in CSV format")
+    parser.add_argument("--analyze_stopping", action="store_true",
+                      help="Run stopping point analysis with fixed cost")
+    parser.add_argument("--stopping_cost", type=float, default=0.3,
+                      help="Cost to use for stopping point analysis (default: 0.3)")
 
     args = parser.parse_args()
 
@@ -567,30 +676,32 @@ def main():
         print(f"  Accuracy: {results['random']['accuracy']:.3f}")
         print(f"  Avg Reward: {results['random']['avg_reward']:.3f}")
         print(f"  Avg Samples: {results['random']['samples_used']:.1f}")
+        print(f"  Value Function: {results['random']['value']:.3f}")
 
         print(f"\nBest-of-N (all samples):")
         print(f"  Accuracy: {results['best_of_n']['accuracy']:.3f}")
         print(f"  Avg Reward: {results['best_of_n']['avg_reward']:.3f}")
         print(f"  Avg Samples: {results['best_of_n']['samples_used']:.1f}")
+        print(f"  Value Function: {results['best_of_n']['value']:.3f}")
 
         print(f"\nSelf-Consistency:")
         print(f"  Accuracy: {results['self_consistency']['accuracy']:.3f}")
         print(f"  Avg Reward: {results['self_consistency']['avg_reward']:.3f}")
         print(f"  Avg Samples: {results['self_consistency']['samples_used']:.1f}")
+        print(f"  Value Function: {results['self_consistency']['value']:.3f}")
 
         print(f"\nDynamic Sampling (BOS Approx):")
         for t in sorted(results["dynamic"].keys()):
             print(f"  Cost Threshold c={t}:")
             print(f"    Accuracy: {results['dynamic'][t]['accuracy']:.3f}")
             print(f"    Avg Reward: {results['dynamic'][t]['avg_reward']:.3f}")
-            print(f"    Avg Samples: {results['dynamic'][t]['samples_used']:.2f}") # More precision for samples
+            print(f"    Avg Samples: {results['dynamic'][t]['samples_used']:.2f}")
+            print(f"    Value Function: {results['dynamic'][t]['value']:.3f}")
 
-        print(f"\nGreedy Sampling (Myopic BOS):")
-        for t in sorted(results["greedy"].keys()):
-            print(f"  Cost Threshold c={t}:") # Changed label
-            print(f"    Accuracy: {results['greedy'][t]['accuracy']:.3f}")
-            print(f"    Avg Reward: {results['greedy'][t]['avg_reward']:.3f}")
-            print(f"    Avg Samples: {results['greedy'][t]['samples_used']:.2f}") # More precision for samples
+        # Run stopping point analysis if requested
+        if args.analyze_stopping:
+            print("\nRunning stopping point analysis...")
+            analyze_stopping_points(args.results_file, args.stopping_cost, args.output_dir)
 
     except FileNotFoundError:
         print(f"Error: Input file not found at {args.results_file}")

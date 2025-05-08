@@ -20,12 +20,13 @@ import time
 load_dotenv()
 
 class LLMEvaluator:
-    def __init__(self, use_nemotron: bool = True, use_rise: bool = False, nemotron_api_base: str = "https://integrate.api.nvidia.com/v1"):
+    def __init__(self, use_nemotron: bool = True, use_skywork: bool = False, nemotron_api_base: str = "https://integrate.api.nvidia.com/v1"):
         # Define patterns for both old and new answer formats
         self.old_answer_pattern = re.compile(r"Therefore, the answer is\s*(\d+)")
-        self.boxed_answer_pattern = re.compile(r'\$\$\\boxed{([^}]+)}\$\$')
+        # Pattern to match boxed answers with nested braces
+        self.boxed_answer_pattern = re.compile(r'(?:\$\$)?\\boxed{((?:[^{}]|{[^{}]*})*)}(?:\$\$)?')
         self.use_nemotron = use_nemotron
-        self.use_rise = use_rise
+        self.use_skywork = use_skywork
         
         # Initialize NVIDIA's reward model client
         if use_nemotron:
@@ -39,14 +40,14 @@ class LLMEvaluator:
                 api_key=nvidia_api_key
             )
             
-        # Initialize RISE model if needed
-        if use_rise:
+        # Initialize Skywork model if needed
+        if use_skywork:
             # Check if HuggingFace token is set
             hf_token = os.getenv("HUGGINGFACE_TOKEN")
             if not hf_token:
                 raise ValueError("HUGGINGFACE_TOKEN environment variable is not set. Please set it in your .env file.")
                 
-            # Initialize RISE model with token
+            # Initialize Skywork model with token
             self.skywork_tokenizer = AutoTokenizer.from_pretrained(
                 "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2",
                 token=hf_token
@@ -192,15 +193,15 @@ class LLMEvaluator:
 
     def compute_reward_scores(self, prompt: str, response: str) -> Dict[str, float]:
         """
-        Compute reward scores using Nemotron and RISE models.
+        Compute reward scores using Nemotron and Skywork models.
         """
         scores = {}
         
         if self.use_nemotron:
             scores["nemotron"] = self.get_nemotron_reward(prompt, response)
             
-        if self.use_rise:
-            scores["rise"] = self.get_rise_reward(response)
+        if self.use_skywork:
+            scores["skywork"] = self.get_skywork_reward(response)
             
         return scores
 
@@ -301,8 +302,8 @@ class LLMEvaluator:
             combined_score = (1.0 if is_correct else -1.0)
             if self.use_nemotron:
                 combined_score += reward_scores["nemotron"]
-            if self.use_rise:
-                combined_score += reward_scores["rise"]
+            if self.use_skywork:
+                combined_score += reward_scores["skywork"]
                 
             if combined_score > best_score:
                 best_score = combined_score
@@ -322,7 +323,8 @@ class LLMEvaluator:
         responses_file: str,
         output_file: str,
         ground_truth_key: str = "ground_truth",
-        test_mode: bool = False
+        test_mode: bool = False,
+        num_questions: int = None
     ) -> Dict:
         """
         Evaluate all responses in a file and save results.
@@ -332,12 +334,18 @@ class LLMEvaluator:
             output_file: Path to save evaluation results
             ground_truth_key: Key in the data containing ground truth answer
             test_mode: If True, only evaluate the first response and print detailed information
+            num_questions: If set, only evaluate the first N questions
         """
         start_time = time.time()
         
         with open(responses_file, 'r') as f:
             data = json.load(f)
             
+        # Limit number of questions if specified
+        if num_questions is not None:
+            data = data[:num_questions]
+            print(f"\nEvaluating only the first {num_questions} questions")
+        
         results = {
             "total_questions": 0,
             "total_responses": 0,
@@ -354,8 +362,8 @@ class LLMEvaluator:
             reward_models = []
             if self.use_nemotron:
                 reward_models.append("nemotron")
-            if self.use_rise:
-                reward_models.append("rise")
+            if self.use_skywork:
+                reward_models.append("skywork")
             reward_str = "_".join(reward_models) if reward_models else "no_reward"
             
             # Create directory name
@@ -377,9 +385,10 @@ class LLMEvaluator:
         
         for item in question_pbar:
             question_id = item.get("id")
-            prompt = item.get("question")
-            # Try to get ground truth from either ground_truth or answer field
-            ground_truth = item.get(ground_truth_key) or item.get("answer")
+            # Try different possible field names for question
+            prompt = item.get("question") or item.get("problem")
+            # Try different possible field names for ground truth
+            ground_truth = item.get(ground_truth_key) or item.get("answer") or item.get("solution")
             responses = item.get("responses", [])
             
             # Skip if any required field is missing
@@ -447,16 +456,16 @@ class LLMEvaluator:
                     except Exception as e:
                         print(f"Error getting Nemotron reward: {e}")
                         reward_scores["nemotron"] = 0.0
-                if self.use_rise:
+                if self.use_skywork:
                     reward_start = time.time()
                     try:
-                        reward_scores["rise"] = self.get_rise_reward(response)
+                        reward_scores["skywork"] = self.get_skywork_reward(response)
                         if test_mode:
-                            print(f"RISE Reward: {reward_scores['rise']}")
-                            print(f"RISE Evaluation Time: {time.time() - reward_start:.2f} seconds")
+                            print(f"Skywork Reward: {reward_scores['skywork']}")
+                            print(f"Skywork Evaluation Time: {time.time() - reward_start:.2f} seconds")
                     except Exception as e:
-                        print(f"Error getting RISE reward: {e}")
-                        reward_scores["rise"] = 0.0
+                        print(f"Error getting Skywork reward: {e}")
+                        reward_scores["skywork"] = 0.0
                     
                 question_results["responses"].append({
                     "final_answer": final_answer,
@@ -508,8 +517,8 @@ class LLMEvaluator:
                 score = (1.0 if response_data["is_correct"] else -1.0)
                 if self.use_nemotron:
                     score += response_data["reward_scores"].get("nemotron", 0)
-                if self.use_rise:
-                    score += response_data["reward_scores"].get("rise", 0)
+                if self.use_skywork:
+                    score += response_data["reward_scores"].get("skywork", 0)
                     
                 if score > best_score:
                     best_score = score
@@ -584,25 +593,28 @@ def main():
                       help="Key containing ground truth answer")
     parser.add_argument("--use_nemotron", action="store_true",
                       help="Use Nemotron reward model")
-    parser.add_argument("--use_rise", action="store_true",
-                      help="Use RISE reward model")
+    parser.add_argument("--use_skywork", action="store_true",
+                      help="Use Skywork reward model")
     parser.add_argument("--nemotron_api_base", type=str, default="https://integrate.api.nvidia.com/v1",
                       help="Base URL for Nemotron API")
     parser.add_argument("--test_mode", action="store_true",
                       help="Only evaluate the first response for testing")
+    parser.add_argument("--num_questions", type=int, default=None,
+                      help="Only evaluate the first N questions")
     
     args = parser.parse_args()
     
     evaluator = LLMEvaluator(
         use_nemotron=args.use_nemotron,
-        use_rise=args.use_rise,
+        use_skywork=args.use_skywork,
         nemotron_api_base=args.nemotron_api_base
     )
     results = evaluator.evaluate_responses(
         args.responses_file,
         args.output_file,
         args.ground_truth_key,
-        args.test_mode
+        args.test_mode,
+        args.num_questions
     )
     
     print(f"Evaluation complete. Results saved to {args.output_file}")

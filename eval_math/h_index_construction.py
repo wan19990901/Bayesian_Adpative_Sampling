@@ -72,15 +72,18 @@ def _t_ppf(p, df):
     float
         The inverse CDF value
     """
+    # Convert probability to integer key (multiply by 1000)
+    p_key = int(p * 1000)
+    
     t_table = {
-        0.025: {
+        25: {  # 0.025 * 1000
             1: -12.706, 2: -4.303, 3: -3.182, 4: -2.776, 5: -2.571, 6: -2.447, 7: -2.365, 8: -2.306,
             9: -2.262, 10: -2.228, 11: -2.201, 12: -2.179, 13: -2.160, 14: -2.145, 15: -2.131,
             16: -2.120, 17: -2.110, 18: -2.101, 19: -2.093, 20: -2.086, 21: -2.080, 22: -2.074,
             23: -2.069, 24: -2.064, 25: -2.060, 26: -2.056, 27: -2.052, 28: -2.048, 29: -2.045,
             30: -2.042, 31: -2.040, 32: -2.037, 33: -2.035, 34: -2.032, 35: -2.030
         },
-        0.01: {
+        10: {  # 0.01 * 1000
             1: -31.821, 2: -6.965, 3: -4.541, 4: -3.747, 5: -3.365, 6: -3.143, 7: -2.998, 8: -2.896,
             9: -2.821, 10: -2.764, 11: -2.718, 12: -2.681, 13: -2.650, 14: -2.624, 15: -2.602,
             16: -2.583, 17: -2.567, 18: -2.552, 19: -2.539, 20: -2.528, 21: -2.518, 22: -2.508,
@@ -89,7 +92,7 @@ def _t_ppf(p, df):
         }
     }
 
-    if p not in t_table:
+    if p_key not in t_table:
         if df <= 2:
             return np.sqrt(df * (p**(-2/df) - 1))
         # For larger degrees of freedom, use normal approximation
@@ -98,7 +101,7 @@ def _t_ppf(p, df):
     else:
         if not (1 <= df <= 35):
             raise ValueError("Degrees of freedom must be between 1 and 35.")
-        return t_table[p][df]
+        return t_table[p_key][int(df)]
 
 @njit
 def H_myopic_jit(recall, sigma_flag, z, k, alpha0):
