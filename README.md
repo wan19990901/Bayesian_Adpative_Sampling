@@ -9,7 +9,7 @@ This repository implements BEACON (Bayesian Efficient Adaptive Criterion for Opt
 - **Efficiency**: Reduces average sample counts by up to 80% compared to fixed BoN
 - **Quality Preservation**: Maintains comparable response quality while reducing computation
 
-## Project‘s main code Structure
+## Project Structure
 
 ```
 src/
@@ -22,9 +22,11 @@ src/
 │   └── evaluation/      # Model evaluation utilities
 ├── results/             # Analysis and result processing
 │   ├── reward_analysis.py      # Reward analysis
-│   ├── process_leaderboard.py  # Leaderboard processing
 │   └── llm_evaluator.py        # LLM evaluation
-└── utils/               # Utility functions
+├── evaluation/          # Evaluation utilities
+├── dpo_iteration/       # DPO training implementation
+├── scripts/            # Utility scripts
+└── utils/              # Utility functions
     └── llm/            # Language Model utilities
         ├── llm_inference.py    # LLM inference
         └── model_utils.py      # Model utilities
@@ -202,5 +204,32 @@ samples_used, max_reward, correctness = bos.run_sampling(
 
 ## Evaluation
 
-We provide the evaluation scripts for all the benchmarks we use, including **AIME24**, **AMC23**, **MATH500**. Please go to ```eval_math``` folder for the detailed instructions.
+The evaluation system supports various mathematical benchmarks and tasks. The evaluation utilities are located in the `src/evaluation` directory.
+
+### Supported Datasets
+- GSM8K: Grade School Math 8K dataset
+- MATH: Mathematical problem-solving dataset
+- Custom mathematical problems
+
+### Evaluation Metrics
+- Accuracy
+- Reward scores
+- Execution success rate
+- Response quality metrics
+
+To use the evaluation system:
+
+```python
+from src.evaluation import evaluate
+
+# Evaluate model outputs
+results = evaluate(
+    samples=model_outputs,
+    data_name="gsm8k",
+    prompt_type="tool-integrated",
+    execute=True
+)
+```
+
+For detailed evaluation metrics and analysis, refer to the documentation in `src/evaluation/README.md`.
 
