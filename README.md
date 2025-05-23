@@ -1,26 +1,108 @@
-This is the repository for running the Iterative DPO with rule-based rewards. In every iteration, we sample responses from the model and label the rewards using the rule-based method. We then construct the preference pair based on the reward scores for DPO training. In our code, we perform iterative DPO starting with Qwen2.5-MATH-7B with prompts from MATH-7500. 
+# BEACON: Bayesian Optimal Stopping for Efficient LLM Sampling
 
+This repository implements BEACON (Bayesian Efficient Adaptive Criterion for Optimal N-stopping), a framework for efficient LLM sampling based on Sequential Search with Gaussian Learning (SSGL).
 
-<div align="center">
-  <img src="figures/dpo_overview.png" alt="Figure caption" width="100%">
-  <p><em>Illustration of the iterative DPO pipeline. Here the exploration is implemented via best-of-n v.s. worst of n sampling. In other words, we sample n responses and use the response with the highest reward and lowest reward as a preference pair.</em></p>
-</div>
+## Key Features
 
-## New Features
+- **Optimal Stopping**: Implements UIP for optimal stopping decisions
+- **Adaptive Sampling**: Dynamically adjusts sample counts based on reward model feedback
+- **Efficiency**: Reduces average sample counts by up to 80% compared to fixed BoN
+- **Quality Preservation**: Maintains comparable response quality while reducing computation
 
-### Reward Evaluation
-The repository now includes a flexible reward evaluation system that can:
-- Evaluate responses using pre-trained reward models
-- Support both regression and classification-based reward models
-- Process multiple responses efficiently
-- Work with custom reward models from Hugging Face
+## Project‘s main code Structure
 
-### Bayesian Optimal Stopping
-We've implemented a Bayesian Optimal Stopping (BOS) mechanism that:
-- Dynamically determines when to stop sampling based on reward distributions
-- Adapts to the underlying reward distribution
-- Balances exploration and exploitation
-- Minimizes sampling costs while maximizing reward quality
+```
+src/
+├── BEACON/               # Best Early-stopping And COmparison of N-samples
+│   ├── stopping_analysis.py    # Dynamic stopping analysis
+│   └── sampling_comparison.py  # Sample comparison utilities
+├── inference/            # Model inference and evaluation
+│   ├── data/            # Data loading and processing
+│   ├── math_utils/      # Mathematical problem utilities
+│   └── evaluation/      # Model evaluation utilities
+├── results/             # Analysis and result processing
+│   ├── reward_analysis.py      # Reward analysis
+│   ├── process_leaderboard.py  # Leaderboard processing
+│   └── llm_evaluator.py        # LLM evaluation
+└── utils/               # Utility functions
+    └── llm/            # Language Model utilities
+        ├── llm_inference.py    # LLM inference
+        └── model_utils.py      # Model utilities
+```
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+### Model Inference
+
+```python
+from src.utils.llm import LLMGenerator
+
+# Initialize LLM generator
+generator = LLMGenerator(
+    provider="openai",
+    api_key="your-api-key",
+    model_name="gpt-4"
+)
+
+# Generate responses
+results = generator.generate_responses(
+    data_file="path/to/data.jsonl",
+    output_file="path/to/output.json"
+)
+```
+
+### Dynamic Stopping
+
+```python
+from src.BEACON import analyze_stopping, compare_samples
+
+# Analyze stopping behavior
+stopping_results = analyze_stopping(
+    responses_file="path/to/responses.json",
+    output_file="path/to/analysis.json"
+)
+
+# Compare samples
+comparison_results = compare_samples(
+    samples_file="path/to/samples.json",
+    output_file="path/to/comparison.json"
+)
+```
+
+### Result Analysis
+
+```python
+from src.results import analyze_rewards, process_leaderboard
+
+# Analyze rewards
+reward_analysis = analyze_rewards(
+    results_file="path/to/results.json",
+    output_file="path/to/analysis.json"
+)
+
+# Process leaderboard
+leaderboard = process_leaderboard(
+    results_file="path/to/results.json",
+    output_file="path/to/leaderboard.json"
+)
+```
+
+## Features
+
+- **Dynamic Stopping**: Implemented in the BEACON module for optimal response selection
+- **Multiple LLM Support**: Integration with OpenAI, Claude, Gemini, and DeepInfra
+- **Comprehensive Evaluation**: Tools for evaluating model performance on mathematical problems
+- **Result Analysis**: Utilities for analyzing and processing model outputs
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Requirements
 
