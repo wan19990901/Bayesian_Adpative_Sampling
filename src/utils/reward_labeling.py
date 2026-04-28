@@ -2,11 +2,10 @@ import random
 import regex
 import re
 import sympy
-from latex2sympy2 import latex2sympy
+from latex2sympy2 import latex2sympy as _latex2sympy_import
 from typing import TypeVar, Iterable, List, Union, Any, Dict
 from word2number import w2n
-from transformers import AutoTokenizer, HfArgumentParser, pipeline, AutoModelForSequenceClassification
-import torch
+#from openrlhf.trainer.ppo_utils.qwen_math_eval_toolkit.utils import *
 
 
 def _fix_fracs(string):
@@ -479,7 +478,7 @@ def extract_theoremqa_answer(pred: str, answer_flag: bool = True):
             pred = pred.split("=")[-1].strip()
             pred = clean_units(pred)
             try:
-                tmp = str(latex2sympy(pred))
+                tmp = str(_latex2sympy_import(pred))
                 pred = str(eval(tmp))
             except Exception:
                 if re.match(r"-?[\d\.]+\s\D+$", pred):
@@ -584,14 +583,9 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
         return example["gt_cot"], gt_ans
 
     # parse ground truth
-    if data_name in ["math", "math500"]:  # Keep math500
+    if data_name in ["math", "minerva_math", "math500"]:  #关键代码
         gt_cot = example["solution"]
         gt_ans = extract_answer(gt_cot, data_name)
-    elif data_name == "mmlu_stem":  # Keep MMLU_stem
-        abcd = "ABCD"
-        gt_cot, gt_ans = None, abcd[example["answer"]]
-    elif data_name in ["aime24", "amc23"]:  # Keep aime24 and amc23
-        gt_cot, gt_ans = None, example["answer"]
     elif data_name == "gsm8k":
         gt_cot, gt_ans = example["answer"].split("####")
     elif data_name == "svamp":
@@ -615,6 +609,9 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
                 gt_ans = float(gt_ans)
     elif data_name == "carp_en":
         gt_cot, gt_ans = example["steps"], example["answer"]
+    elif data_name == "mmlu_stem":
+        abcd = "ABCD"
+        gt_cot, gt_ans = None, abcd[example["answer"]]
     elif data_name == "sat_math":
         gt_cot, gt_ans = None, example["Answer"]
     elif data_name == "aqua":
@@ -640,8 +637,7 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
     ]:
         gt_cot, gt_ans = None, example["answer"]
     else:
-        raise NotImplementedError(f"Dataset {data_name} is not supported. Only MMLU_stem, math500, aime24, and amc23 are supported for evaluation.")
-    
+        raise NotImplementedError(f"`{data_name}`")
     # post process
     gt_cot = str(gt_cot).strip()
     if data_name not in STRIP_EXCEPTIONS:
@@ -759,15 +755,8 @@ from sympy.parsing.sympy_parser import parse_expr
 from sympy.parsing.latex import parse_latex
 
 
-def latex2sympy(sympy: str, variable_values={}):
-    # record frac
-    global frac_type
-    if sympy.find(r'\frac') != -1:
-        frac_type = r'\frac'
-    if sympy.find(r'\dfrac') != -1:
-        frac_type = r'\dfrac'
-    if sympy.find(r'\tfrac') != -1:
-        frac_type = r'\tfrac'
+def _latex2sympy_custom(sympy: str, variable_values={}):
+    # Normalize frac variants
     sympy = sympy.replace(r'\dfrac', r'\frac')
     sympy = sympy.replace(r'\tfrac', r'\frac')
     # Translate Transpose
@@ -778,56 +767,14 @@ def latex2sympy(sympy: str, variable_values={}):
     sympy = sympy.replace(r'\left[\begin{matrix}', r'\begin{bmatrix}', -1).replace(r'\end{matrix}\right]', r'\end{bmatrix}', -1)
     # Translate Permutation
     sympy = re.sub(r"\(([a-zA-Z0-9+\-*/\\ ]+?)\)_{([a-zA-Z0-9+\-*/\\ ]+?)}", r"\\frac{(\1)!}{((\1)-(\2))!}", sympy)
-    # Remove \displaystyle
+    # Remove \displaystyle, \quad, $
     sympy = sympy.replace(r'\displaystyle', ' ', -1)
-    # Remove \quad
     sympy = sympy.replace(r'\quad', ' ', -1).replace(r'\qquad', ' ', -1).replace(r'~', ' ', -1).replace(r'\,', ' ', -1)
-    # Remove $
     sympy = sympy.replace(r'$', ' ', -1)
-
-    # variable values
-    global VARIABLE_VALUES
-    if len(variable_values) > 0:
-        VARIABLE_VALUES = variable_values
-    else:
-        VARIABLE_VALUES = {}
-
-    # setup listener
-    matherror = MathErrorListener(sympy)
-
-    # stream input
-    stream = InputStream(sympy)
-    lex = PSLexer(stream)
-    lex.removeErrorListeners()
-    lex.addErrorListener(matherror)
-
-    tokens = CommonTokenStream(lex)
-    parser = PSParser(tokens)
-
-    # remove default console error listener
-    parser.removeErrorListeners()
-    parser.addErrorListener(matherror)
-
-    # process the input
-    return_data = None
-    math = parser.math()
-
-    # if a list
-    if math.relation_list():
-        return_data = []
-
-        # go over list items
-        relation_list = math.relation_list().relation_list_content()
-        for list_item in relation_list.relation():
-            expr = convert_relation(list_item)
-            return_data.append(expr)
-
-    # if not, do default
-    else:
-        relation = math.relation()
-        return_data = convert_relation(relation)
-
-    return return_data
+    try:
+        return _latex2sympy_import(sympy)
+    except Exception:
+        return None
 
 
 def math_answer_cleaning(answer, dataset_name):
@@ -932,7 +879,7 @@ def round_number(answer):
     return answer
 
 
-def choice_answer_clean(pred: str):
+def _grader_choice_answer_clean(pred: str):
     pred = pred.strip("\n").rstrip(".").rstrip("/").strip(" ").lstrip(":")
     # Clean the answer based on the dataset
     tmp = re.findall(r"\b(A|B|C|D|E)\b", pred.upper())
@@ -998,7 +945,7 @@ def math_equal(
         return True
     if (
         reference in ["A", "B", "C", "D", "E"]
-        and choice_answer_clean(prediction) == reference
+        and _grader_choice_answer_clean(prediction) == reference
     ):
         return True
 
@@ -1208,7 +1155,7 @@ def fraction_equal(prediction, reference):
 
 def symbolic_equal(a, b):
     def _parse(s):
-        for f in [parse_latex, parse_expr, latex2sympy]:
+        for f in [parse_latex, parse_expr, _latex2sympy_custom]:
             try:
                 return f(s.replace("\\\\", "\\"))
             except:
@@ -1272,7 +1219,7 @@ def math_equal_process(prediction, reference, output_queue):
     output_queue.put(result)
 
 
-def call_with_timeout(func, *args, timeout=1, **kwargs):
+def call_with_timeout(func, *args, timeout=5, **kwargs):
     output_queue = multiprocessing.Queue()
     process_args = args + (output_queue,)
     process = multiprocessing.Process(target=func, args=process_args, kwargs=kwargs)
@@ -1329,9 +1276,9 @@ def is_equal(model_output, reference, dataset_name='math'):
     #extracted_model_answer, all_matches = extract_final_answer(model_output)
     
     try:
-        extracted_model_answer = extract_answer(model_output, dataset_name, use_last_number=True)
+        extracted_model_answer, all_matches = extract_final_answer(model_output)
     except:
-        extracted_model_answer = None
+        extracted_model_answer, all_matches = None, []
     if extracted_model_answer is None or reference is None:
         return False
 
@@ -1339,9 +1286,8 @@ def is_equal(model_output, reference, dataset_name='math'):
     reference = math_answer_cleaning(reference, dataset_name)
 
     if math_equal(extracted_model_answer, reference, timeout=True):
-    #if call_with_timeout(math_equal_process, extracted_model_answer, reference):
         return True
-    
+
     if dataset_name == "collegemath":
         return check_correctness_of_multiple_answer_cases(extracted_model_answer, reference, all_matches)
 
@@ -1389,8 +1335,8 @@ def is_equiv(str1, str2, verbose=False):
         return False
 
     try:
-        ss1 = strip_string(str1)
-        ss2 = strip_string(str2)
+        ss1 = _grader_strip_string(str1)
+        ss2 = _grader_strip_string(str2)
         if verbose:
             print(ss1, ss2)
         return ss1 == ss2
@@ -1514,7 +1460,7 @@ def fix_sqrt(string):
     return new_string
 
 
-def strip_string(string):
+def _grader_strip_string(string):
     # linebreaks
     string = string.replace("\n", "")
 
@@ -1599,93 +1545,51 @@ class ScriptArguments:
         default="uf_split0_responses_K8_reward.json",
         metadata={"help": "the location of the output file"},
     )
-    use_nemotron: Optional[bool] = field(
-        default=False,
-        metadata={"help": "whether to use NVIDIA's Nemotron reward model"},
-    )
-    use_rise: Optional[bool] = field(
-        default=False,
-        metadata={"help": "whether to use RISE reward model"},
-    )
 
 
 
 
 parser = HfArgumentParser(ScriptArguments)
+script_args = parser.parse_args_into_dataclasses()[0]
 
-def get_rise_reward(text: str) -> float:
-    """
-    Get reward score from R-I-S-E/RISE-Judge-Qwen2.5-32B model.
-    """
-    model_name = "R-I-S-E/RISE-Judge-Qwen2.5-32B"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-    
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-    with torch.no_grad():
-        outputs = model(**inputs)
-        scores = torch.sigmoid(outputs.logits)
-    return scores.item()
+ds = load_dataset("json",data_files=script_args.dataset_name_or_path, split="train")
 
-def get_skywork_reward(text: str) -> float:
-    """
-    Get reward score from Skywork/Skywork-Reward-Llama-3.1-8B-v0.2 model.
-    """
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    model_name = "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2"
-    
-    # Initialize model and tokenizer (only once)
-    if not hasattr(get_skywork_reward, 'model'):
-        get_skywork_reward.model = AutoModelForSequenceClassification.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            device_map=device,
-            num_labels=1,
-        )
-        get_skywork_reward.tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
-    # Format the conversation
-    conv = [{"role": "user", "content": text}, {"role": "assistant", "content": text}]
-    
-    # Tokenize and get reward score
-    try:
-        conv_tokenized = get_skywork_reward.tokenizer.apply_chat_template(
-            conv, 
-            tokenize=True, 
-            return_tensors="pt"
-        ).to(device)
-        
-        with torch.no_grad():
-            score = get_skywork_reward.model(conv_tokenized).logits[0][0].item()
-        return score
-    except Exception as e:
-        print(f"Error getting Skywork reward score: {e}")
-        return 0.0
+import time
+import json
+import os
+from tqdm import tqdm
+#ds = ds.select(range(500))
 
-def get_reward_scores(text: str, use_nemotron: bool = False, use_rise: bool = False, use_skywork: bool = False) -> Dict[str, float]:
-    """
-    Get reward scores from different models.
-    
-    Args:
-        text: The text to evaluate
-        use_nemotron: Whether to use NVIDIA's Nemotron reward model
-        use_rise: Whether to use RISE reward model
-        use_skywork: Whether to use Skywork reward model
-        
-    Returns:
-        Dictionary containing reward scores from selected models
-    """
-    scores = {}
-    
-    if use_nemotron:
-        scores["nemotron"] = get_nemotron_reward(text)
-    if use_rise:
-        scores["rise"] = get_rise_reward(text)
-    if use_skywork:
-        scores["skywork"] = get_skywork_reward(text)
-        
-    return scores
+# Pool workers are daemons by default; is_equal() spawns subprocesses for sympy
+# timeouts, which daemons cannot do. Use non-daemon workers to allow this.
+class _NoDaemonProcess(multiprocessing.Process):
+    @property
+    def daemon(self):
+        return False
+    @daemon.setter
+    def daemon(self, value):
+        pass
 
-if __name__ == "__main__":
-    script_args = parser.parse_args_into_dataclasses()[0]
-    main(script_args)
+class _NoDaemonPool(multiprocessing.pool.Pool):
+    def Process(self, *args, **kwds):
+        proc = super().Process(*args, **kwds)
+        proc.__class__ = _NoDaemonProcess
+        return proc
+
+def _score_sample(sample):
+    rewards = []
+    for ans in sample['responses']:
+        if is_equal(ans, sample['gt']):
+            rewards.append(1.0)
+        elif "\\boxed" in ans:
+            rewards.append(-0.5)
+        else:
+            rewards.append(-1.0)
+    sample['rewards'] = rewards
+    return sample
+
+_num_proc = int(os.environ.get('REWARD_NUM_PROC', 32))
+with _NoDaemonPool(_num_proc, maxtasksperchild=10) as _pool:
+    all_data = list(tqdm(_pool.imap(_score_sample, ds, chunksize=1), total=len(ds)))
+with open(script_args.output_dir,"w") as f:
+    json.dump(all_data,f,indent=4,ensure_ascii=False)

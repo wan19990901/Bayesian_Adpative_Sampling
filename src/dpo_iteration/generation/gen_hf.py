@@ -55,7 +55,7 @@ class ScriptArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        default="your model",
+        default="/sfs/gpfs/tardis/project/sds-rise/guangya/huggingface/hub/Qwen2.5-Math-7B",
         metadata={"help": "the location of the SFT model name or path"},
     )
     dataset_name_or_path: Optional[str] = field(
@@ -103,6 +103,18 @@ class ScriptArguments:
         metadata={"help": "the key of the dataset"},
     )
     eos_ids: List[int] = field(default_factory=lambda: [], metadata={"help": "the ids of the end of sentence tokens"})
+    gt_key: Optional[str] = field(
+        default="gt",
+        metadata={"help": "dataset field name for ground truth answers"},
+    )
+    gpu_memory_utilization: Optional[float] = field(
+        default=0.9,
+        metadata={"help": "fraction of GPU memory vLLM pre-allocates for KV cache (0.9 = full throughput; lower to free memory for other users)"},
+    )
+    max_num_seqs: Optional[int] = field(
+        default=256,
+        metadata={"help": "max sequences vLLM schedules in parallel; increase to raise GPU utilization when KV cache is large"},
+    )
 
 
 parser = HfArgumentParser(ScriptArguments)
@@ -121,7 +133,9 @@ llm = LLM(
     dtype="bfloat16",
     #max_model_len=script_args.max_input_length,
     load_format="auto",
-    seed=42,
+    seed=script_args.seed,
+    gpu_memory_utilization=script_args.gpu_memory_utilization,
+    max_num_seqs=script_args.max_num_seqs,
 )
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
@@ -135,7 +149,12 @@ sampling_params = SamplingParams(
 )
 
 
-ds = load_dataset(script_args.dataset_name_or_path, split="train")
+import os as _os
+_path = script_args.dataset_name_or_path
+if _os.path.exists(_path):
+    ds = load_dataset("json", data_files=_path, split="train")
+else:
+    ds = load_dataset(_path, split="train")
 
 # ## loading for MATH training set
 # configs = get_dataset_config_names(script_args.dataset_name_or_path)
@@ -154,7 +173,9 @@ ds = ds.map(
 
 data_size = len(ds["prompt"])
 one_num_share = int(data_size / script_args.my_world_size)
-ds = ds.select(np.arange(script_args.local_index * one_num_share, (script_args.local_index + 1) * one_num_share))
+start = script_args.local_index * one_num_share
+end = data_size if script_args.local_index == script_args.my_world_size - 1 else (script_args.local_index + 1) * one_num_share
+ds = ds.select(np.arange(start, end))
 
 print([script_args.local_index * one_num_share, (script_args.local_index + 1) * one_num_share])
 print(ds, script_args.dataset_name_or_path)
@@ -170,7 +191,8 @@ used_prompts = []
 gathered_data = []
 for i, output in enumerate(outputs):
     #tmp_data = {"prompt": ds[i]['prompt'], "responses": [out.text for out in output.outputs], "gt":remove_boxed(last_boxed_only_string(ds[i]['solution']))}
-    tmp_data = {"prompt": ds[i]['prompt'], "responses": [out.text for out in output.outputs], "gt":ds[i]['gt']}
+    gt_value = ds[i].get(script_args.gt_key) or ds[i].get("gt") or ds[i].get("answer") or ds[i].get("solution")
+    tmp_data = {"prompt": ds[i]['prompt'], "responses": [out.text for out in output.outputs], "gt": gt_value}
     gathered_data.append(tmp_data)
 
 

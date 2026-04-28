@@ -12,7 +12,7 @@ from eval.grader import *
 from utils.parser import *
 from utils.utils import load_jsonl
 from utils.python_executor import PythonExecutor
-def get_batch_scores(remain_codes, remain_gts):
+def get_batch_scores(remain_codes, remain_gts, execute=False):
     samples = []
     assert len(remain_codes) == len(remain_gts)
     for i in range(len(remain_codes)):
@@ -23,7 +23,7 @@ def get_batch_scores(remain_codes, remain_gts):
         )
     if 'idx' in samples[0]:
         samples = {sample['idx']: sample for sample in samples}.values()
-        samples = sorted(samples, key=lambda x: x['idx']) 
+        samples = sorted(samples, key=lambda x: x['idx'])
     else:
         samples = [dict(idx=idx, **sample) for idx, sample in enumerate(samples)]
     prompt_type = 'cot'
@@ -81,7 +81,7 @@ def get_batch_scores(remain_codes, remain_gts):
             score_mat[i] = s + [s[-1]] * (max_len - len(s)) # pad
 
     return [sam['score'] for sam in samples]
-def get_scores(remain_codes, remain_gts):
+def get_scores(remain_codes, remain_gts, execute=False):
     samples = []
     assert len(remain_codes) == len(remain_gts)
     for i in range(len(remain_codes)):
@@ -92,7 +92,7 @@ def get_scores(remain_codes, remain_gts):
         )
     if 'idx' in samples[0]:
         samples = {sample['idx']: sample for sample in samples}.values()
-        samples = sorted(samples, key=lambda x: x['idx']) 
+        samples = sorted(samples, key=lambda x: x['idx'])
     else:
         samples = [dict(idx=idx, **sample) for idx, sample in enumerate(samples)]
     prompt_type = 'cot'

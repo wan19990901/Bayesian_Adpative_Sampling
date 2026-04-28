@@ -43,6 +43,7 @@ for my_dir in all_dirs:
     for sample in ds:
         gathered_data.append(sample)
 
+random.seed(42)
 random.shuffle(gathered_data)
 
 print("I collect ", len(gathered_data), "samples")

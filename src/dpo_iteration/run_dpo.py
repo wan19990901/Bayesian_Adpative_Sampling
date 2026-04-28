@@ -133,8 +133,9 @@ def prepare_data(
     pos = []
     neg = []
     prompts = []
-
     margin = []
+    skipped_equal = 0
+
     for sample in ds:
         #P = tokenizer.apply_chat_template(sample["prompt"], tokenize = False, add_generation_prompt= True)
         P = sample["prompt"]
@@ -143,10 +144,8 @@ def prepare_data(
             idx1 = 1
         elif choose_type == "max_random":
             idx0 = np.argmax(sample["rewards"])
-            if idx0 == 0:
-                idx1 = 1
-            else:
-                idx1 = 0
+            remaining = [i for i in range(len(sample["rewards"])) if i != idx0]
+            idx1 = remaining[np.random.randint(len(remaining))] if remaining else idx0
         elif choose_type == "max_min":
             idx0 = np.argmax(sample["rewards"])
             idx1 = np.argmin(sample["rewards"])
@@ -182,6 +181,9 @@ def prepare_data(
                 pos.append(sample["responses"][idx1] + eot_token)
                 neg.append(sample["responses"][idx0] + eot_token)
                 margin.append((-sample["rewards"][idx0] + sample["rewards"][idx1]) * margin_scale)
+            else:
+                skipped_equal += 1
+    print(f"[prepare_data] skipped {skipped_equal} equal-reward pairs out of {len(ds)} samples")
     dataset = Dataset.from_dict({"prompt": prompts, "chosen": pos, "rejected": neg, "margin": margin})
 
     if sanity_check:
@@ -200,7 +202,7 @@ if __name__ == "__main__":
     model = AutoModelForCausalLM.from_pretrained(
         model_config.model_name_or_path,
         attn_implementation="flash_attention_2",
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
     )
     model.config.use_cache = False
 
@@ -223,6 +225,13 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name_or_path)
     if script_args.eos_padding:
         tokenizer.pad_token = tokenizer.eos_token
+    # TRL's tokenize_row prepends bos_token_id to every prompt. For tokenizers
+    # like Qwen that have no BOS token (bos_token_id=None), this inserts None
+    # into token lists and crashes the collator. Setting bos_token_id to the
+    # <|im_start|> token makes TRL's check a no-op because chat-template prompts
+    # already start with that token.
+    if tokenizer.bos_token_id is None:
+        tokenizer.bos_token_id = tokenizer.convert_tokens_to_ids("<|im_start|>")
     else:
         tokenizer.add_special_tokens({"pad_token": "[PAD]"})
         model.config.vocab_size += 1
@@ -231,10 +240,7 @@ if __name__ == "__main__":
         model_ref.config.pad_token_id = tokenizer.pad_token_id
         model.resize_token_embeddings(len(tokenizer))
         model_ref.resize_token_embeddings(len(tokenizer))
-        print("testtest")
 
-    tokenizer.bos_token = tokenizer.eos_token
-    print(tokenizer.bos_token)
     # 2. Load the Stack-exchange paired dataset
     train_dataset = prepare_data(
         data_dir=script_args.train_dir,
@@ -306,6 +312,7 @@ if __name__ == "__main__":
     dpo_trainer.train()
     dpo_trainer.save_model(training_args.output_dir)
 
-    # 7. save
+    # 7. save — use save_model (not model.save_pretrained) so ZeRO-3 consolidates shards
     output_dir = os.path.join(training_args.output_dir, "final_checkpoint")
-    dpo_trainer.model.save_pretrained(output_dir)
+    dpo_trainer.save_model(output_dir)
+    tokenizer.save_pretrained(output_dir)
