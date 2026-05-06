@@ -7,7 +7,7 @@ import os
 from llm_evaluator import LLMEvaluator
 import math
 from numba import njit
-from h_index_construction import (
+from src.adapt_sample.h_index_construction import (
     _t_pdf, _norm_pdf, _t_cdf, _norm_cdf, _norm_ppf, _t_ppf,
     H_myopic_jit, h_index_full, h_index_value
 )
