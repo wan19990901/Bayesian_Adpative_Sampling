@@ -30,11 +30,11 @@ RESERVE_GPUS_DURING_CPU="${RESERVE_GPUS_DURING_CPU:-1}"
 GPU_RESERVE_MB="${GPU_RESERVE_MB:-2048}"
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-INITIAL_MODEL="${INITIAL_MODEL:-/sfs/gpfs/tardis/project/sds-rise/guangya/huggingface/hub/Qwen2.5-Math-7B}"
-BASE_PATH="${BASE_PATH:-${PROJECT_ROOT}/outputs/iter_dpo_h200}"
+INITIAL_MODEL="${INITIAL_MODEL:-Qwen/Qwen2.5-Math-7B}"   # HF hub ID or local path
+BASE_PATH="${BASE_PATH:-${PROJECT_ROOT}/outputs/iter_dpo}"
 ITERATION_PREFIX="${ITERATION_PREFIX:-Train}"
 
-ENVS_DIR="${ENVS_DIR:-/sfs/gpfs/tardis/project/sds-rise/guangya/conda_envs}"
+ENVS_DIR="${ENVS_DIR:-${HOME}/conda_envs}"
 GEN_PY="${GEN_PY:-${ENVS_DIR}/odpo-gen/bin/python}"
 ACCELERATE="${ACCELERATE:-${ENVS_DIR}/odpo-train/bin/accelerate}"
 

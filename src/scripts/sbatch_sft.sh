@@ -3,7 +3,7 @@
 # To change GPU count:  update BOTH --gres AND NUM_GPUS below to match.
 # To change GPU type:   update --gres and --constraint (a100 / h100 / etc.).
 #SBATCH --job-name=iter_sft
-#SBATCH --account=sds-rise
+#SBATCH --account=YOUR_ACCOUNT       # ← set your cluster account
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:4           # ← GPU type:count
 #SBATCH --constraint=a100
@@ -11,8 +11,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
 #SBATCH --time=3-00:00:00
-#SBATCH --output=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code/logs/iter_sft_%j.out
-#SBATCH --error=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code/logs/iter_sft_%j.err
+#SBATCH --output=logs/iter_sft_%j.out
+#SBATCH --error=logs/iter_sft_%j.err
 
 # ── Tune these to match #SBATCH settings above ───────────────────────────────
 export NUM_GPUS=4                        # ← must match --gres count
@@ -27,7 +27,7 @@ export GRADIENT_ACCUMULATION_STEPS=32   # effective batch = 1 × 4 GPUs × 32 = 
 # export ACCELERATE_CONFIG=./configs/zero2.yaml
 
 # ── Pipeline settings ─────────────────────────────────────────────────────────
-export BASE_PATH=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code/outputs/iter_sft_a100
+export BASE_PATH="${BASE_PATH:-outputs/iter_sft_a100}"
 export NUM_ITERS=8
 export BEST_OF_K=8
 export MIN_REWARD=1.0

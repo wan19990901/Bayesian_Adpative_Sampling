@@ -4,14 +4,11 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="online-dpo",
+    name="beacon-sampling",
     version="0.1.0",
-    author="Guangya Wan",
-    author_email="your.email@example.com",  # Replace with your email
-    description="Online Direct Preference Optimization (DPO) for Language Models",
+    description="BEACON: Bayesian Efficient Adaptive Criterion for Optimal N-stopping",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/Online-DPO-R1",  # Replace with your repo URL
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[

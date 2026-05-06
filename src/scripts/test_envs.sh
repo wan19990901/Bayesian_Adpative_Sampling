@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=beacon_test
-#SBATCH --account=sds-rise
+#SBATCH --account=YOUR_ACCOUNT       # ← set your cluster account
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100:2
 #SBATCH --constraint=a100
@@ -8,17 +8,18 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=00:45:00
-#SBATCH --output=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code/logs/test_envs_%j.out
-#SBATCH --error=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code/logs/test_envs_%j.err
+#SBATCH --output=logs/test_envs_%j.out
+#SBATCH --error=logs/test_envs_%j.err
 
 set -euo pipefail
 
-REPO=/sfs/gpfs/tardis/project/sds-rise/guangya/Beacon_Training_Code
-GEN_PY=/sfs/gpfs/tardis/project/sds-rise/guangya/conda_envs/odpo-gen/bin/python
-TRAIN_PY=/sfs/gpfs/tardis/project/sds-rise/guangya/conda_envs/odpo-train/bin/python
-ACCELERATE=/sfs/gpfs/tardis/project/sds-rise/guangya/conda_envs/odpo-train/bin/accelerate
-MODEL=/sfs/gpfs/tardis/project/sds-rise/guangya/huggingface/hub/Qwen2.5-Math-7B
-export WORK=/sfs/gpfs/tardis/project/sds-rise/guangya/beacon_test_${SLURM_JOB_ID}
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+ENVS_DIR="${ENVS_DIR:-${HOME}/conda_envs}"
+GEN_PY="${GEN_PY:-${ENVS_DIR}/odpo-gen/bin/python}"
+TRAIN_PY="${TRAIN_PY:-${ENVS_DIR}/odpo-train/bin/python}"
+ACCELERATE="${ACCELERATE:-${ENVS_DIR}/odpo-train/bin/accelerate}"
+MODEL="${MODEL:-Qwen/Qwen2.5-Math-7B}"   # HF hub ID or local path
+export WORK="${WORK:-/tmp/beacon_test_${SLURM_JOB_ID:-$$}}"
 
 mkdir -p "$WORK" "${REPO}/logs"
 cd "$REPO"

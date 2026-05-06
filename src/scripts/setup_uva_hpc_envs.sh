@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Bootstraps two isolated Python envs using uv.
-# Designed for UVA-style module environments.
+# Tested on SLURM clusters with CUDA 12.x. Adjust module names for your system.
 #
 # Usage:
 #   module load cuda/12.4.1 gcc/11.4.0
@@ -15,7 +15,7 @@ GEN_ENV="${GEN_ENV:-odpo-gen}"
 TRAIN_ENV="${TRAIN_ENV:-odpo-train}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
 
-ENVS_DIR="/sfs/gpfs/tardis/project/sds-rise/guangya/conda_envs"
+ENVS_DIR="${ENVS_DIR:-${HOME}/conda_envs}"
 GEN_DIR="${ENVS_DIR}/${GEN_ENV}"
 TRAIN_DIR="${ENVS_DIR}/${TRAIN_ENV}"
 GEN_PY="${GEN_DIR}/bin/python"

@@ -55,8 +55,8 @@ class ScriptArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        default="/sfs/gpfs/tardis/project/sds-rise/guangya/huggingface/hub/Qwen2.5-Math-7B",
-        metadata={"help": "the location of the SFT model name or path"},
+        default="Qwen/Qwen2.5-Math-7B",
+        metadata={"help": "HF hub ID or local path of the model"},
     )
     dataset_name_or_path: Optional[str] = field(
         default="hendrycks/competition_math",

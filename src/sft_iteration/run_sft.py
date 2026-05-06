@@ -14,8 +14,8 @@ from trl import SFTConfig, SFTTrainer
 @dataclass
 class ScriptArguments:
     model_name_or_path: Optional[str] = field(
-        default="/sfs/gpfs/tardis/project/sds-rise/guangya/huggingface/hub/Qwen2.5-Math-7B",
-        metadata={"help": "Base or previous-iteration model path"},
+        default="Qwen/Qwen2.5-Math-7B",
+        metadata={"help": "Base or previous-iteration model path (HF hub ID or local path)"},
     )
     train_file: Optional[str] = field(
         default=None,

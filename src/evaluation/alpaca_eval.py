@@ -3,14 +3,15 @@ import json
 import argparse
 from typing import List, Dict, Optional
 from datasets import load_dataset
-from litellm import completion
 from tqdm import tqdm
 import time
 from dotenv import load_dotenv
 import openai
 
-# Load environment variables from parent directory
-load_dotenv('../.env')
+for _env in [".env", "../.env", os.path.expanduser("~/.env")]:
+    if os.path.exists(_env):
+        load_dotenv(_env)
+        break
 
 def get_client(model_name: str):
     """
@@ -24,6 +25,16 @@ def get_client(model_name: str):
     """
     if model_name.startswith("deepinfra/"):
         return None, model_name, "deepinfra"
+    elif model_name.startswith("gemini/"):
+        try:
+            import google.generativeai as genai
+        except ImportError as exc:
+            raise ValueError("Missing dependency: pip install google-generativeai") from exc
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("Set GEMINI_API_KEY or GOOGLE_API_KEY to use gemini/* models")
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel(model_name.replace("gemini/", "")), model_name.replace("gemini/", ""), "gemini"
     elif model_name.startswith("openai/"):
         client = openai.OpenAI(
             api_key=os.getenv("XAI_API_KEY"),
@@ -127,6 +138,7 @@ def generate_responses(
                 try:
                     if provider == "deepinfra":
                         # Use litellm for DeepInfra
+                        from litellm import completion
                         completion_params = {
                             "model": actual_model_name,
                             "messages": messages,
@@ -141,6 +153,17 @@ def generate_responses(
                         
                         response = completion(**completion_params)
                         output_text = response.choices[0].message.content
+                    elif provider == "gemini":
+                        import google.generativeai as genai
+                        config_args = {"temperature": temperature}
+                        if max_tokens is not None:
+                            config_args["max_output_tokens"] = max_tokens
+                        generation_config = genai.types.GenerationConfig(**config_args)
+                        response = client.generate_content(
+                            example["instruction"],
+                            generation_config=generation_config,
+                        )
+                        output_text = getattr(response, "text", "") or ""
                     else:  # XAI provider
                         # Use OpenAI client for XAI
                         response = client.chat.completions.create(
@@ -163,6 +186,7 @@ def generate_responses(
                     # Update the file after each response
                     result = {
                         "instruction": example["instruction"],
+                        "output": next((r for r in responses if r and not r.startswith("ERROR:")), ""),
                         "responses": responses,
                         "generator": model_name
                     }
@@ -203,7 +227,7 @@ def generate_responses(
 def main():
     parser = argparse.ArgumentParser(description="Generate responses for AlpacaEval dataset")
     parser.add_argument("--model", type=str, required=True,
-                      help="Model name (e.g., 'deepinfra/Qwen/Qwen2.5-7B-Instruct' or 'openai/grok-3-mini-fast-beta')")
+                      help="Model name (e.g., 'gemini/gemini-1.5-pro', 'deepinfra/Qwen/Qwen2.5-7B-Instruct', or 'openai/grok-3-mini-fast-beta')")
     parser.add_argument("--output_file", type=str, required=True,
                       help="Output file path")
     parser.add_argument("--subset_size", type=int,

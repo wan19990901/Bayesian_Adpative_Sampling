@@ -1,0 +1,30 @@
+# ── Core inference / evaluation ───────────────────────────────────────────────
+torch>=2.0.0
+transformers>=4.48.0
+datasets>=2.12.0
+numpy>=1.24.0,<2.0.0          # numpy 2.x breaks several torch/vllm deps
+numba>=0.57.0                  # JIT-compiled h-index DP table (BEACON core)
+
+# ── Math parsing ──────────────────────────────────────────────────────────────
+sympy==1.12
+latex2sympy2==1.9.1
+antlr4-python3-runtime==4.7.2
+word2number>=1.1
+
+# ── Gemini evaluation ─────────────────────────────────────────────────────────
+google-genai>=1.0.0            # Gemini 2.5+ with thinking mode
+python-dotenv>=1.0.0
+
+# ── Reward model ──────────────────────────────────────────────────────────────
+requests>=2.28.0               # Skywork API backend
+# (Skywork local backend also requires torch + transformers above)
+
+# ── Plotting / utilities ──────────────────────────────────────────────────────
+matplotlib>=3.7.0
+scipy>=1.10.0
+tqdm>=4.65.0
+pebble>=5.0.0
+
+# ── Training (optional — only needed for SFT/DPO pipeline) ───────────────────
+# pip install trl==0.9.6 accelerate==0.33.0 deepspeed==0.15.4 flash-attn==2.6.3
+# See README.md for the full training environment setup.
