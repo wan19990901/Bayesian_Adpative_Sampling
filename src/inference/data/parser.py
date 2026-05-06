@@ -5,7 +5,7 @@ import sympy
 from latex2sympy2 import latex2sympy
 from typing import TypeVar, Iterable, List, Union, Any, Dict
 from word2number import w2n
-from utils import *
+from .utils import *
 
 
 def _fix_fracs(string):
@@ -629,6 +629,7 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
         gt_cot, gt_ans = None, example["final_answer"][0].strip("$")
     elif data_name in [
         "aime24",
+        "aime25",
         "amc23",
         "cmath",
         "gaokao2024_I",

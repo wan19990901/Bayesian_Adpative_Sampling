@@ -1,10 +1,5 @@
-"""
-Model loading and inference utilities.
+"""Compatibility exports for model loading and generation helpers."""
 
-This module contains functions for loading models and
-performing inference, including text generation and
-response sampling.
-"""
+from ...utils.llm.model_utils import generate_completions, load_hf_lm_and_tokenizer
 
-from .model_utils import *
-from .llm_inference import * 
+__all__ = ["generate_completions", "load_hf_lm_and_tokenizer"]

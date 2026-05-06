@@ -4,13 +4,33 @@ from tqdm import tqdm
 import numpy as np
 from typing import List, Tuple, Optional, Union, Dict
 from enum import Enum
+import os
+import requests
+
+SKYWORK_REWARD_MODEL = "Skywork/Skywork-Reward-Llama-3.1-8B-v0.2"
+SKYWORK_API_MODEL = "Skywork-Reward-V2-Llama-3.1-8B"
+SKYWORK_API_URL = "https://api.skywork.ai/v1/score"
 
 class SamplingStrategy(Enum):
     BOS = "bos"  # Bayesian Optimal Stopping
     BEST_OF_N = "best_of_n"  # Best of N sampling
 
 class RewardEvaluator:
-    def __init__(self, model_name: str = "OpenAssistant/reward-model-deberta-v3-large-v2", device: Optional[str] = None):
+    def __init__(
+        self,
+        model_name: str = "OpenAssistant/reward-model-deberta-v3-large-v2",
+        backend: str = "local",
+        device: Optional[str] = None,
+        torch_dtype: Optional[str] = None,
+        attn_implementation: Optional[str] = None,
+        max_length: int = 4096,
+        trust_remote_code: bool = False,
+        use_chat_template: Optional[bool] = None,
+        skywork_api_key: Optional[str] = None,
+        skywork_api_model: str = SKYWORK_API_MODEL,
+        skywork_api_url: str = SKYWORK_API_URL,
+        request_timeout: int = 60,
+    ):
         """
         Initialize the reward model evaluator.
 
@@ -18,12 +38,56 @@ class RewardEvaluator:
             model_name (str): HuggingFace model path for the reward model
             device (str, optional): Device to run the model on (cuda/cpu)
         """
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+        self.backend = backend.lower()
+        if self.backend not in {"local", "api"}:
+            raise ValueError("backend must be one of: local, api")
+        self.device = device if device else ("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.max_length = max_length
+        self.use_chat_template = (
+            use_chat_template
+            if use_chat_template is not None
+            else model_name.startswith("Skywork/")
+        )
+        print(f"Reward backend: {self.backend}")
+
+        if self.backend == "api":
+            self.skywork_api_key = (
+                skywork_api_key
+                or os.getenv("SKY_API_KEY")
+                or os.getenv("SKYWORK_API_KEY")
+            )
+            if not self.skywork_api_key:
+                raise ValueError("Set SKY_API_KEY or SKYWORK_API_KEY for backend='api'.")
+            self.skywork_api_model = skywork_api_model
+            self.skywork_api_url = skywork_api_url
+            self.request_timeout = request_timeout
+            self.session = requests.Session()
+            self.model = None
+            self.tokenizer = None
+            self.is_regression = True
+            return
+
         print(f"Using device: {self.device}")
+        model_kwargs = {"trust_remote_code": trust_remote_code}
+        if self.use_chat_template:
+            model_kwargs["num_labels"] = 1
+        if torch_dtype:
+            model_kwargs["torch_dtype"] = getattr(torch, torch_dtype)
+        elif self.device.startswith("cuda"):
+            model_kwargs["torch_dtype"] = torch.bfloat16
+        if attn_implementation:
+            model_kwargs["attn_implementation"] = attn_implementation
 
         # Load model and tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=trust_remote_code,
+        )
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            **model_kwargs,
+        ).to(self.device)
+        self.model.eval()
 
         # Check if this is a regression or classification model
         self.is_regression = self.model.config.num_labels == 1
@@ -40,11 +104,15 @@ class RewardEvaluator:
         Returns:
             float: The reward score
         """
-        # Format inputs based on model requirements
-        inputs = self.tokenizer(prompt, response, return_tensors="pt").to(self.device)
+        if self.backend == "api":
+            return self._compute_reward_api(prompt, response)
+        inputs = self._tokenize_pair(prompt, response)
 
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            if isinstance(inputs, torch.Tensor):
+                outputs = self.model(inputs)
+            else:
+                outputs = self.model(**inputs)
 
         # Get the reward score
         if self.is_regression:
@@ -55,6 +123,53 @@ class RewardEvaluator:
             reward = probs[0, 1].item()  # Assuming binary classification with positive = 1
 
         return reward
+
+    def _compute_reward_api(self, prompt: str, response: str) -> float:
+        headers = {
+            "Authorization": f"Bearer {self.skywork_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.skywork_api_model,
+            "input": {
+                "prompt": prompt,
+                "response": response,
+            },
+        }
+        resp = self.session.post(
+            self.skywork_api_url,
+            headers=headers,
+            json=payload,
+            timeout=self.request_timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        score = data.get("data", {}).get("score")
+        if score is None:
+            raise ValueError(f"Malformed Skywork API response: {data}")
+        return float(score)
+
+    def _tokenize_pair(self, prompt: str, response: str):
+        if self.use_chat_template:
+            conversation = [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": response},
+            ]
+            return self.tokenizer.apply_chat_template(
+                conversation,
+                tokenize=True,
+                return_tensors="pt",
+                truncation=True,
+                max_length=self.max_length,
+            ).to(self.device)
+
+        return self.tokenizer(
+            prompt,
+            response,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.max_length,
+        ).to(self.device)
 
     def evaluate_responses(self, prompt: str, responses: List[str]) -> List[float]:
         """

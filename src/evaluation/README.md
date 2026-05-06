@@ -1,77 +1,73 @@
 # Evaluation Module
 
-This module provides utilities for evaluating model performance on mathematical problems and other tasks.
+This folder is for instruction-following evaluation, primarily AlpacaEval.
 
-## Core Components
+## AlpacaEval
 
-### 1. Mathematical Evaluation (`math_eval.py`)
-- Evaluates model performance on mathematical problems
-- Supports multiple datasets (GSM8K, MATH, etc.)
-- Handles different prompt types and evaluation metrics
+Use `alpaca_eval.py` to generate model outputs for AlpacaEval/AlpacaEval 2.0:
 
-### 2. Model Evaluation (`model_eval.py`)
-- General model evaluation utilities
-- Supports multiple model providers
-- Handles different evaluation metrics
-
-### 3. Reward Analysis (`reward_analysis.py`)
-- Analyzes reward scores
-- Computes performance metrics
-- Generates evaluation reports
-
-## Usage
-
-### Basic Usage
-
-```python
-from src.evaluation import evaluate
-
-# Evaluate model outputs
-results = evaluate(
-    samples=model_outputs,
-    data_name="gsm8k",
-    prompt_type="tool-integrated",
-    execute=True
-)
+```bash
+python -m src.evaluation.alpaca_eval \
+  --model gemini/gemini-1.5-pro \
+  --output_file results/alpaca_eval/gemini_responses_alpaca.json \
+  --temperature 0.7 \
+  --num_runs 1
 ```
 
-### Advanced Usage
+Then run the AlpacaEval judge:
 
-```python
-from src.evaluation.math_eval import MathEvaluator
-
-# Initialize evaluator
-evaluator = MathEvaluator(
-    model_name="gpt-4",
-    temperature=0.7,
-    max_tokens=2048
-)
-
-# Evaluate specific problems
-results = evaluator.evaluate_problems(
-    problems=math_problems,
-    num_samples=5
-)
+```bash
+alpaca_eval \
+  --model_outputs results/alpaca_eval/gemini_responses_alpaca.json \
+  --annotators_config weighted_alpaca_eval_gpt4_turbo
 ```
 
-## Supported Datasets
+Supported generation providers in `alpaca_eval.py`:
 
-- GSM8K
-- MATH
-- Custom mathematical problems
+- `gemini/<model-name>` using `GEMINI_API_KEY` or `GOOGLE_API_KEY`
+- `deepinfra/<model-name>` using `DEEPINFRA_API_KEY`
+- `openai/<model-name>` routed to xAI using `XAI_API_KEY`
 
-## Evaluation Metrics
+## Reward Model Reranking
 
-- Accuracy
-- Reward scores
-- Execution success rate
-- Response quality metrics
+To score multi-response AlpacaEval generations with Skywork Reward Llama 3.1 8B:
 
-## Configuration
+```bash
+python -m src.scripts.score_alpaca_with_skywork \
+  --input_file results/alpaca_eval/grok3_responses_alpaca.json \
+  --output_file results/alpaca_eval/skywork_reward_grok3_alpaca.json \
+  --reward_model Skywork/Skywork-Reward-Llama-3.1-8B-v0.2 \
+  --device cuda:0 \
+  --torch_dtype bfloat16 \
+  --attn_implementation eager
+```
 
-The evaluation module can be configured through:
-1. Command line arguments
-2. Configuration files
-3. Environment variables
+Then select one response per prompt using the score sidecar:
 
-See `configs/evaluation/` for example configurations. 
+```bash
+python src/inference/fix_alpaca_format.py
+```
+
+`fix_alpaca_format.py` currently uses `use_dynamic=False`, so it picks the highest
+Skywork score for each prompt. Set `use_dynamic=True` in that call to use the
+BOS-style adaptive stopping selector.
+
+## Math Evaluation
+
+Math benchmark evaluation lives under `src/inference`, not this folder.
+
+For Gemini on MATH-500/AIME, use:
+
+```bash
+python -m src.scripts.eval_gemini_math \
+  --model gemini-1.5-pro \
+  --data_names math500,aime24,aime25 \
+  --data_dir data \
+  --output_dir results/gemini_math \
+  --prompt_type mathstral \
+  --n_sampling 1 \
+  --save_outputs
+```
+
+The math command reuses the inference parser/evaluator stack and reports
+first-sample accuracy plus `pass_at_n` when `--n_sampling` is greater than 1.

@@ -15,7 +15,7 @@ from ..data.parser import *
 from ..data.trajectory import *
 from ..data.data_loader import load_data
 from .python_executor import PythonExecutor
-from ..model_utils.model_utils import load_hf_lm_and_tokenizer, generate_completions
+from ...utils.llm.model_utils import load_hf_lm_and_tokenizer, generate_completions
 
 
 def parse_args():

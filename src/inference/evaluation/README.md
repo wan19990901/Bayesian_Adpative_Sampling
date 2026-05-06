@@ -5,7 +5,6 @@ This module contains utilities for evaluating model outputs, including correctne
 ## Files
 
 - `evaluate.py`: Core evaluation functions for model outputs
-- `evaluate_Inference.py`: Inference-specific evaluation utilities
 - `rm_maj_eval.py`: Reward model and majority voting evaluation
 
 ## Usage

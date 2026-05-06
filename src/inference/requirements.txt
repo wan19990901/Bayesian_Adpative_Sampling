@@ -9,7 +9,8 @@ flash_attn
 
 # math_eval
 sympy==1.12
-antlr4-python3-runtime==4.11.1 # ! The version needs to be compatible with sympy.
+antlr4-python3-runtime==4.7.2 # Compatible with latex2sympy2.
 word2number
 Pebble
 timeout-decorator
+google-generativeai

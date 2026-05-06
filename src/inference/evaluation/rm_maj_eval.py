@@ -1,8 +1,9 @@
-from grader import math_equal
-from parser import strip_string
 import timeout_decorator
 from collections import defaultdict, Counter
-from utils import load_jsonl
+
+from ..data.parser import strip_string
+from ..data.utils import load_jsonl
+from ..math_utils.grader import math_equal
 
 
 @timeout_decorator.timeout(5)

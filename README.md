@@ -25,38 +25,60 @@ The stopping threshold adapts automatically: hard problems (high posterior varia
 ```
 src/
 ├── adapt_sample/
-│   ├── sampling_comparison.py   # BEACON core + AdaBoN baseline comparison
-│   └── stopping_analysis.py     # Post-hoc stopping-point analysis
+│   ├── h_index_construction.py  # DP table for h(k,z) — BEACON stopping criterion
+│   ├── sampling_comparison.py   # BEACON core + AdaBoN baseline comparison framework
+│   └── stopping_analysis.py     # Post-hoc stopping-point analysis utilities
 ├── inference/
-│   ├── data/                    # Data loading, prompt construction, parsing
+│   ├── data/                    # Data loading, prompt construction, answer parsing
 │   ├── math_utils/              # Math grading (math_equal, latex2sympy)
-│   └── evaluation/              # Reward-model majority-vote eval
+│   └── evaluation/              # Reward-model majority-vote evaluation
 ├── scripts/
+│   ├── eval_gemini_beacon.py    # Adaptive BEACON evaluation (main)
 │   ├── eval_gemini_math.py      # Fixed-N Gemini evaluation (baseline)
-│   └── eval_gemini_beacon.py    # Adaptive BEACON evaluation (main)
+│   ├── score_alpaca_with_skywork.py  # Score AlpacaEval outputs with reward model
+│   ├── run_sft.sh               # Iterative SFT pipeline (local or SLURM)
+│   ├── run_dpo.sh               # Iterative DPO pipeline (local or SLURM)
+│   ├── sbatch_sft.sh            # SLURM wrapper for run_sft.sh
+│   └── sbatch_dpo.sh            # SLURM wrapper for run_dpo.sh
 ├── utils/
-│   └── reward_evaluator.py      # Skywork reward model (local GPU or REST API)
-├── sft_iteration/               # Supervised fine-tuning data building + training
+│   ├── reward_evaluator.py      # Skywork reward model (local GPU or REST API)
+│   └── reward_labeling.py       # Batch reward labeling for training data
+├── evaluation/                  # AlpacaEval scoring and analysis
+├── sft_iteration/               # SFT data building and training
 └── dpo_iteration/               # Iterative DPO training and generation
 configs/
-├── training.yaml                # Main training config
+├── zero3.yaml                   # DeepSpeed ZeRO-3 (default — works for all setups)
+├── zero2.yaml                   # DeepSpeed ZeRO-2 (faster on A100/H200 with 4+ GPUs)
+├── zero3_1gpu.yaml              # ZeRO-3 single-GPU config (for testing)
 ├── dpo_config.yaml              # DPO hyperparameters
-└── deepspeed_stage{1,2,3}.json  # DeepSpeed ZeRO configs
+└── deepspeed_stage{1,2,3}.json  # Alternative DeepSpeed stage configs
 data/
 ├── aime24/test.jsonl
 ├── aime25/test.jsonl
 └── math500/test.jsonl
 examples/
-└── beacon_example.py
+├── beacon_example.py            # BEACON stopping rule walkthrough
+├── llm_inference_example.py     # LLM generation with reward scoring
+└── results_analysis_example.py  # Analysing saved result files
 ```
 
 ---
 
 ## Installation
 
-Two separate conda environments are required: one for inference/evaluation and one for training.
+### Quick start (inference / evaluation)
 
-### Inference environment
+```bash
+pip install -r requirements.txt
+```
+
+For Gemini evaluation, set your API key in a `.env` file or environment variable:
+
+```bash
+echo "GEMINI_API_KEY=your_key_here" >> .env
+```
+
+### Full inference environment (vLLM + local reward model)
 
 ```bash
 conda create -n vllm python=3.10.9
@@ -75,15 +97,13 @@ pip install python-dotenv tqdm requests
 
 ### Training environment
 
+Two environments are required for the SFT/DPO pipeline. See `src/scripts/setup_uva_hpc_envs.sh` for an automated setup script, or install manually:
+
 ```bash
 conda create -n rlhflow python=3.10.9
 conda activate rlhflow
 
-git clone https://github.com/huggingface/alignment-handbook.git
-cd alignment-handbook
-git checkout 27f7dbf00663dab66ad7334afb7a1311fa251f41
 pip install torch==2.1.2 torchvision torchaudio
-pip install -e .
 pip install flash-attn==2.6.3
 pip install accelerate==0.33.0 huggingface-hub==0.24.7
 pip install transformers==4.42.2 peft==0.7.1
@@ -147,14 +167,14 @@ python -m src.scripts.eval_gemini_math \
     --output_dir results/gemini_fixed_n8
 ```
 
-Important defaults (corrected from earlier broken runs):
+Key arguments:
 
 | Argument | Default | Notes |
 |---|---|---|
-| `--prompt_type` | `cot` | Use `cot`, not `mathstral` (Mathstral-specific format) |
-| `--temperature` | `1.0` | Required for sampling diversity; 0.0 gives identical outputs |
-| `--max_output_tokens` | `32768` | Must be large enough for chain-of-thought |
-| `--thinking_budget` | `8192` | Enables Gemini 2.5 extended thinking (~70% AIME reported) |
+| `--prompt_type` | `cot` | Use `cot` for standard chain-of-thought prompting |
+| `--temperature` | `1.0` | Required for sampling diversity |
+| `--max_output_tokens` | `32768` | Should be large enough for chain-of-thought responses |
+| `--thinking_budget` | `8192` | Enables Gemini 2.5 extended thinking |
 
 ---
 
@@ -205,11 +225,15 @@ Generates 32 responses per problem using vLLM + a DeepInfra API backend.
 ### Step 2 — Score with reward model
 
 ```bash
-# Local GPU
-python src/utils/reward_evaluator.py
+# Score math responses (reward labeling for training data)
+python src/utils/reward_labeling.py \
+    --dataset_name_or_path outputs/responses.json \
+    --output_dir outputs/reward.json
 
-# or score AlpacaEval responses
-python src/scripts/score_alpaca_with_skywork.py
+# or score AlpacaEval responses with Skywork
+python src/scripts/score_alpaca_with_skywork.py \
+    --input_file outputs/alpaca_responses.json \
+    --output_file outputs/alpaca_scored.json
 ```
 
 ### Step 3 — Build SFT data
