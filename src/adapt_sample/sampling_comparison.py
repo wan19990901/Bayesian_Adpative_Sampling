@@ -4,7 +4,6 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
-from llm_evaluator import LLMEvaluator
 import math
 from numba import njit
 from src.adapt_sample.h_index_construction import (
